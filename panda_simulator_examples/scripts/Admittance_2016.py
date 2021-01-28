@@ -130,22 +130,16 @@ if __name__ == "__main__":
     robot = PandaArm()
     robot.move_to_neutral() 
 
-    max_num_it=12000
-    T=0.001
+    max_num_it=12000 # 12 seconds
+    T=0.001 # Controller loop period [correct in sim]
 
     F_d =np.array([0,0,0])
     goal_ori = robot.endpoint_pose()['orientation'] #goal = current
-    #goal_ori_asarray = np.asarray(robot.endpoint_pose()['orientation'])
     x_d = robot.endpoint_pose()['position']
     #x_d = np.asarray([0.3,0,0.59]) #random goal position 42->46-49
 
     # ---------- Initialization -------------------
-    #E = np.asarray([0,0,0])
-    #dE = np.asarray([0,0,0])
-    #delta_F = np.zeros((3,3))    # x[N, N-1, N-2],
-    #dE_list = np.zeros((3,3))
-    #E_list = np.zeros((3,3))     # y[N, N-1, N-2],
-                                 # z[N, N-1, N-2] 
+
     sensor_readings = np.zeros((6,max_num_it))
     x_c_list = np.zeros((3,max_num_it))
     x_list = np.zeros((3,max_num_it))
