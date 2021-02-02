@@ -32,18 +32,18 @@ S_v = np.array([[1, 0, 0, 0, 0],
 K = np.array([[1, 0, 0, 0, 0, 0],
             [0, 1, 0, 0, 0, 0],
             [0, 0, 100, 0, 0, 0],
-            [0, 0, 0, 1, 0, 0],
-            [0, 0, 0, 0, 1, 0],
+            [0, 0, 0, 5, 0, 0],
+            [0, 0, 0, 0, 5, 0],
             [0, 0, 0, 0, 0, 1]]).reshape([6,6])
 
 C = np.linalg.inv(K)
 
 
 K_Plambda = 40 #random
-K_Dlambda = 4 #random
+K_Dlambda = 40 #random
 
-K_Pr = 100*np.identity(5) #random
-K_Dr = 10*np.identity(5) #random
+K_Pr = 50*np.identity(5) #random
+K_Dr = 5*np.identity(5) #random
 
 # ------------ Helper functions --------------------------------
 
@@ -63,8 +63,8 @@ def get_lambda():
     #return 0 #fake feedback 
 
 def get_r_d(i,current_r_d):
-    if i < 3000:
-        new_r_d = current_r_d + np.zeros(5) #doing nothing
+    if i > 200 and i < 2200:
+        new_r_d = current_r_d + np.array([0.00005,0,0,0,0]) #adding to x
         return new_r_d
     else:
         return current_r_d
@@ -113,7 +113,8 @@ def calculate_f_lambda(i,T, S_f,C,K_Dlambda,K_Plambda,lambda_d_history, lambda_d
     S_f_inv = get_S_inv(S_f,C)
     K_dot = get_K_dot(S_f,S_f_inv,C)
     lambda_dot = (np.linalg.multi_dot([S_f_inv,K_dot,robot.jacobian(),get_joint_velocities()]))
-    return get_ddot_scalar(lambda_d_history,i,T) + np.array(np.dot(K_Dlambda,(get_dot_scalar(lambda_d_history,i,T)-lambda_dot))) + np.dot(K_Plambda,(lambda_d-get_lambda()))
+    return -(get_ddot_scalar(lambda_d_history,i,T) + np.array(np.dot(K_Dlambda,(get_dot_scalar(lambda_d_history,i,T)-lambda_dot))) + np.dot(K_Plambda,(lambda_d-get_lambda())))
+    #return np.dot(K_Plambda,(get_lambda()-lambda_d)) #reversed
 
 def calculate_alpha_v(i,T,r_d_history,r_d,K_Pr,K_Dr):
     r_d_dot = get_dot_list(r_d_history,i,T)
@@ -124,12 +125,13 @@ def calculate_alpha(S_v, alpha_v,C,S_f,f_lambda):
     S_v_inv = get_S_inv(S_v,C)
     P_v = np.array(np.dot(S_v,S_v_inv))
     C_dot = np.array(np.dot((np.identity(6)-(P_v).reshape([6,6])),C)).reshape([6,6])
-    return np.array(np.dot(S_v, alpha_v)).reshape([6,1]) + np.array(np.linalg.multi_dot([C_dot,S_f,f_lambda])).reshape([6,1])
+    return np.array(np.dot(S_v, alpha_v)).reshape([6,1]) + f_lambda*np.array(np.dot(C_dot,S_f)).reshape([6,1])
 
 def perform_torque(alpha):
     cartesian_inertia = np.linalg.inv(np.linalg.multi_dot([robot.jacobian(),np.linalg.inv(robot.joint_inertia_matrix()),robot.jacobian().T]))
     alpha_torque = np.array(np.linalg.multi_dot([robot.jacobian().T,cartesian_inertia,alpha])).reshape([7,1])
-    external_torque = np.dot(robot.jacobian().T,np.append(robot.endpoint_effort()['force'],robot.endpoint_effort()['torque'])).reshape([7,1])
+    #external_torque = np.dot(robot.jacobian().T,np.append(robot.endpoint_effort()['force'],robot.endpoint_effort()['torque'])).reshape([7,1])
+    #external_torque = np.dot(robot.jacobian().T,np.array([0,0,robot.endpoint_effort()['force'][2],0,0,0])).reshape([7,1])
     torque = alpha_torque + robot.coriolis_comp().reshape([7,1]) #+ external_torque
     robot.set_joint_torques(dict(list(zip(robot.joint_names(),torque))))
 
@@ -139,11 +141,10 @@ def plot_result(f_controlled, f_d ,controlled_pose,x_d,z, f_lambda):
     time_array = np.arange(len(controlled_pose[0]))*0.001
     
 
-    plt.subplot(131)
+    plt.subplot(221)
     plt.title("External force")
     
     plt.plot(time_array, f_controlled[:], label="force z [N]")
-    plt.plot(time_array, f_lambda[:], label="f_lambda")
     #plt.plot(time_array, f_controlled[2,:], label="torque y [Nm]")
     plt.plot(time_array, f_d[:], label="desired force z [N]", color='b',linestyle='dashed')
     #plt.plot(time_array, f_d[1,:], label="desired torque x [Nm]", color='C1',linestyle='dashed')
@@ -153,7 +154,7 @@ def plot_result(f_controlled, f_d ,controlled_pose,x_d,z, f_lambda):
     plt.legend()
 
 
-    plt.subplot(132)
+    plt.subplot(222)
     plt.title("Position")
 
     plt.plot(time_array, controlled_pose[0,:], label = "true x [m]")
@@ -169,7 +170,7 @@ def plot_result(f_controlled, f_d ,controlled_pose,x_d,z, f_lambda):
     plt.legend()
     
 
-    plt.subplot(133)
+    plt.subplot(223)
     plt.title("Orientation")
 
     plt.plot(time_array, controlled_pose[2,:], label = "true  Ori_x [quat]")
@@ -183,20 +184,31 @@ def plot_result(f_controlled, f_d ,controlled_pose,x_d,z, f_lambda):
     plt.xlabel("Real time [s]")
     plt.legend()
 
+    plt.subplot(224)
+    plt.title("Applied control")
+    plt.plot(time_array, f_lambda[:], label="f_lambda")
+    plt.xlabel("Real time [s]")
+    plt.legend()
+     
+
+
     plt.show()
 
 # MAIN FUNCTION
 
 if __name__ == "__main__":
     rospy.init_node("impedance_control")
+    publish_rate = 500
+    rate = rospy.Rate(publish_rate)
+    
     robot = PandaArm()
     robot.move_to_neutral() 
 
-    max_num_it=500 # 12 seconds
+    max_num_it=3000
     # TO BE INITIALISED BEFORE LOOP
-    T = 0.001 #correct for sim
+    T = 0.001*(1000/publish_rate) #correct for sim
 
-    lambda_d = 0
+    lambda_d = 10
     lambda_d_history = np.zeros(max_num_it)
     r_d = get_r()
     r_d_history = np.zeros((5,max_num_it)) 
@@ -221,10 +233,12 @@ if __name__ == "__main__":
         alpha_v = calculate_alpha_v(i,T,r_d_history, r_d,K_Pr,K_Dr)
         alpha = calculate_alpha(S_v,alpha_v,C,S_f,f_lambda)
         perform_torque(alpha)
+        rate.sleep()
+
 
         # plotting and printing
         if i%100 == 0:
-            print(i,') Force in z: ',robot.endpoint_effort()['force'][2])
+            print(i,'= ',T*i,' [s]   ) Force in z: ',robot.endpoint_effort()['force'][2])
             print('f_lambda: ',f_lambda)
             print('')
 

@@ -174,7 +174,7 @@ if __name__ == "__main__":
     # TO BE INITIALISED BEFORE LOOP
     T = 0.001 #correct for sim
 
-    lambda_d = np.array([0,0,0])#.reshape([3,1])
+    lambda_d = np.array([0,0,10])#.reshape([3,1])
     lambda_d_history = np.zeros((3,max_num_it))
     r_d = get_r()
     r_d_history = np.zeros((3,max_num_it)) 
