@@ -47,7 +47,7 @@ C = np.linalg.inv(K)
 K_Plambda = 10*np.identity(3) #random
 K_Dlambda = np.identity(3) #random
 
-K_Pr = 10*np.identity(3) #random
+K_Pr = 100*np.identity(3) #random
 K_Dr = np.identity(3) #random
 
 # ------------ Helper functions --------------------------------
@@ -64,8 +64,9 @@ def get_r(): #
     return np.array([robot.endpoint_pose()['position'][0],robot.endpoint_pose()['position'][1],robot.endpoint_pose()['orientation'].z])
 
 def get_lambda():
-    #return np.array([robot.endpoint_effort()['force'][2],robot.endpoint_effort()['torque'][0],robot.endpoint_effort()['torque'][1]])
-    return np.zeros(3) #fake feedback 
+    return np.array([robot.endpoint_effort()['force'][2],robot.endpoint_effort()['torque'][0],robot.endpoint_effort()['torque'][1]])
+    #return np.array([robot.endpoint_effort()['force'][2],0,0])
+    #return np.zeros(3) #fake feedback 
 
 def get_r_d(i,current_r_d):
     if i < 3000:
@@ -102,24 +103,6 @@ def get_ddot(history,iteration,T):
         return np.zeros(3).reshape([3,1])
 
 
-
-# TO BE DETERMINED
-"""
-lambda_d_ddot fixed
-lambda_d_dot fixed
-r
-r_d_dot
-r_d_ddot
-"""
-# control parameters
-"""
-K_Dlambda
-K_Plambda
-K_Pr
-K_Dr
-"""
-
-
 # CALCULATE TORQUE
 def calculate_f_lambda(i,T, S_f,C,K_Dlambda,K_Plambda,lambda_d_history, lambda_d):
     S_f_inv = get_S_inv(S_f,C)
@@ -143,10 +126,42 @@ def perform_torque(alpha):
     alpha_torque = np.array(np.linalg.multi_dot([robot.jacobian().T,cartesian_inertia,alpha])).reshape([7,1])
     external_torque = np.dot(robot.jacobian().T,np.append(robot.endpoint_effort()['force'],robot.endpoint_effort()['torque'])).reshape([7,1])
     torque = alpha_torque + robot.coriolis_comp().reshape([7,1]) + external_torque
-    print(np.shape(torque))
     robot.set_joint_torques(dict(list(zip(robot.joint_names(),torque))))
 
 
+def plot_result(f_controlled, f_d ,controlled_pose,x_d):
+
+    time_array = np.arange(len(controlled_pose[0]))*0.001
+    
+
+    plt.subplot(121)
+    plt.title("External wrench")
+    
+    plt.plot(time_array, f_controlled[0,:], label="force z [N]")
+    plt.plot(time_array, f_controlled[1,:], label="torque x [Nm]")
+    plt.plot(time_array, f_controlled[2,:], label="torque y [Nm]")
+    plt.plot(time_array, f_d[0,:], label="desired force z [N]", color='b',linestyle='dashed')
+    plt.plot(time_array, f_d[1,:], label="desired torque x [Nm]", color='C1',linestyle='dashed')
+    plt.plot(time_array, f_d[2,:], label="desired torque y [Nm]", color='g',linestyle='dashed')
+
+    plt.xlabel("Real time [s]")
+    plt.legend()
+
+
+    plt.subplot(122)
+    plt.title("Pose")
+
+    plt.plot(time_array, controlled_pose[0,:], label = "true x [m]")
+    plt.plot(time_array, controlled_pose[1,:], label = "true y [m]")
+    plt.plot(time_array, controlled_pose[2,:], label = "true  Ori_z [quat]")
+    plt.plot(time_array, x_d[0,:], label = "desired x [m]", color='b',linestyle='dashed')
+    plt.plot(time_array, x_d[1,:], label = "desired y [m]", color='C1',linestyle='dashed')
+    plt.plot(time_array, x_d[2,:], label = "desired Ori_z [m]", color='g',linestyle='dashed')
+
+    plt.xlabel("Real time [s]")
+    plt.legend()
+    
+    plt.show()
 
 # MAIN FUNCTION
 
@@ -155,14 +170,19 @@ if __name__ == "__main__":
     robot = PandaArm()
     robot.move_to_neutral() 
 
-    max_num_it=12000 # 12 seconds
+    max_num_it=500 # 12 seconds
     # TO BE INITIALISED BEFORE LOOP
     T = 0.001 #correct for sim
+
     lambda_d = np.array([0,0,0])#.reshape([3,1])
     lambda_d_history = np.zeros((3,max_num_it))
     r_d = get_r()
     r_d_history = np.zeros((3,max_num_it)) 
-    max_num_it = 12000
+
+
+    #for plotting
+    controlled_pose = np.zeros((3,max_num_it))
+    controlled_wrench = np.zeros((3,max_num_it))
 
     for i in range(max_num_it):
         # IN LOOP:
@@ -177,5 +197,13 @@ if __name__ == "__main__":
         alpha_v = calculate_alpha_v(i,T,r_d_history, r_d,K_Pr,K_Dr)
         alpha = calculate_alpha(S_v,alpha_v,C,S_f,f_lambda)
         perform_torque(alpha)
+
+        # plotting and printing
         if i%100 == 0:
-            print(i,') Force in z: ',robot.endpoint_effort()['force'][2])
+            print(i,') True Force in z: ',robot.endpoint_effort()['force'][2])
+
+        controlled_pose[:,i] = get_r()
+        controlled_wrench[:,i] = get_lambda()
+    
+    plot_result(controlled_wrench,lambda_d_history,controlled_pose,r_d_history)
+
