@@ -14,6 +14,8 @@ from panda_robot import PandaArm
 
 #from rviz_markers import RvizMarkers
 import matplotlib.pyplot as plt
+#import panda as pd
+from scipy.spatial.transform import Rotation
 
 np.set_printoptions(precision=2)
 
@@ -40,10 +42,21 @@ C = np.linalg.inv(K)
 
 
 K_Plambda = 40 #random
-K_Dlambda = 40 #random
+K_Dlambda = 20 #random
 
-K_Pr = 50*np.identity(5) #random
-K_Dr = 5*np.identity(5) #random
+K_Pr = 10*np.array([[5, 0, 0, 0, 0],
+                [0, 5, 0, 0, 0],
+                [0, 0, 1, 0, 0],
+                [0, 0, 0, 1, 0],
+                [0, 0, 0, 0, 1]]) #random
+
+
+
+K_Dr = np.array([[5, 0, 0, 0, 0],
+                [0, 5, 0, 0, 0],
+                [0, 0, 5, 0, 0],
+                [0, 0, 0, 10, 0],
+                [0, 0, 0, 0, 10]])
 
 # ------------ Helper functions --------------------------------
 
@@ -55,22 +68,25 @@ def get_v():
     return (np.array([robot.endpoint_velocity()['linear'][0],robot.endpoint_velocity()['linear'][1],robot.endpoint_velocity()['angular'][0],robot.endpoint_velocity()['angular'][1],robot.endpoint_velocity()['angular'][2]])).reshape([5,1])
 
 
-def get_r(): #
-    return np.array([robot.endpoint_pose()['position'][0],robot.endpoint_pose()['position'][1],robot.endpoint_pose()['orientation'].x,robot.endpoint_pose()['orientation'].y,robot.endpoint_pose()['orientation'].z])
+def get_r():
+    quat_as_list = np.array([robot.endpoint_pose()['orientation'].x,robot.endpoint_pose()['orientation'].y,robot.endpoint_pose()['orientation'].z,robot.endpoint_pose()['orientation'].w])
+    rot = Rotation.from_quat(quat_as_list)
+    rot_euler = rot.as_euler('xyz', degrees=True)
+    return np.array([robot.endpoint_pose()['position'][0],robot.endpoint_pose()['position'][1],rot_euler[0],rot_euler[1],rot_euler[2]])
 
 def get_lambda():
     return robot.endpoint_effort()['force'][2]
     #return 0 #fake feedback 
 
 def get_r_d(i,current_r_d):
-    if i > 200 and i < 2200:
+    if i > 200 and i < 1200:
         new_r_d = current_r_d + np.array([0.00005,0,0,0,0]) #adding to x
         return new_r_d
     else:
         return current_r_d
 
 def get_lambda_d(i,current_lambda_d):
-    if i < 3000:
+    if i < 2000:
         new_lambda_d = current_lambda_d + 0.005
         return new_lambda_d
     else:
@@ -107,6 +123,8 @@ def get_ddot_scalar(history,iteration,T):
         return (get_dot_scalar(history,iteration,T) - get_dot_scalar(history,iteration-1,T))/T
     else:
         return 0
+
+    
 
 # CALCULATE TORQUE
 def calculate_f_lambda(i,T, S_f,C,K_Dlambda,K_Plambda,lambda_d_history, lambda_d):
