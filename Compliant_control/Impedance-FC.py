@@ -42,16 +42,15 @@ C = np.linalg.inv(K)
 
 
 K_Plambda = 50 #random (force gains)
-K_Dlambda = 20 #random
+K_Dlambda =15 #random
 
 #Position:
 Pp = 120 #proportional gain for position (x and y)
 Dp = 12 #damping position (x and y)
 
 #Orientation
-Po = 10 #proportional gain for orientation
-Do = 20 #damping_orientation
-
+Po = 20 #proportional gain for orientation
+Do = 40 #damping_orientation
 
 K_Pr = np.array([[Pp, 0, 0, 0, 0],
                 [0, Pp, 0, 0, 0],
@@ -86,19 +85,24 @@ def get_lambda():
     return robot.endpoint_effort()['force'][2]
     #return 0 #fake feedback 
 
+
+def get_lambda_d(i,original_d=15):
+    if i < 1500:
+        return  float(i)/100
+    elif i > 2000 and i < 4000:
+        new_lambda_d = original_d + 5*np.sin(i*0.001*2*np.pi)
+        return new_lambda_d
+    else:
+        return original_d
+
 def get_r_d(i,current_r_d):
-    if i > 3000 and i < 5000:
+    if i > 4500 and i < 6500:
         new_r_d = current_r_d + np.array([0.0001,0,0,0,0]) #adding to x
         return new_r_d
     else:
         return current_r_d
 
-def get_lambda_d(i,original_d=15):
-    if i > 500 and i < 2500:
-        new_lambda_d = original_d + 5*np.sin(i*0.001*2*np.pi)
-        return new_lambda_d
-    else:
-        return original_d
+
 
 
 def get_S_inv(S,C):
@@ -132,15 +136,23 @@ def get_ddot_scalar(history,iteration,T):
     else:
         return 0
 
+def low_pass(history, iteration):
+    if i > 10000:
+        return (history[i]+history[i-1])/2
+    else:
+        return history[i]
     
 
 # CALCULATE TORQUE
-def calculate_f_lambda(i,T, S_f,C,K_Dlambda,K_Plambda,lambda_d_history, lambda_d):
+def calculate_f_lambda(i,T, S_f,C,K_Dlambda,K_Plambda,lambda_d_history, lambda_d, z_force):
     S_f_inv = get_S_inv(S_f,C)
     K_dot = get_K_dot(S_f,S_f_inv,C)
     lambda_dot = (np.linalg.multi_dot([S_f_inv,K_dot,robot.jacobian(),get_joint_velocities()]))
-    return -(get_ddot_scalar(lambda_d_history,i,T) + np.array(np.dot(K_Dlambda,(get_dot_scalar(lambda_d_history,i,T)-lambda_dot))) + np.dot(K_Plambda,(lambda_d-get_lambda())))
-    #return np.dot(K_Plambda,(get_lambda()-lambda_d)) #reversed
+    lambda_a = get_ddot_scalar(lambda_d_history,i,T)
+    lambda_b = np.array(np.dot(K_Dlambda,(get_dot_scalar(lambda_d_history,i,T)-lambda_dot)))
+    lambda_c = np.dot(K_Plambda,(lambda_d-z_force))
+    #return -(get_ddot_scalar(lambda_d_history,i,T) + np.array(np.dot(K_Dlambda,(get_dot_scalar(lambda_d_history,i,T)-lambda_dot))) + np.dot(K_Plambda,(lambda_d-z_force)))
+    return lambda_a, lambda_b, lambda_c
 
 def calculate_alpha_v(i,T,r_d_history,r_d,K_Pr,K_Dr):
     r_d_dot = get_dot_list(r_d_history,i,T)
@@ -162,9 +174,9 @@ def perform_torque(alpha):
     robot.set_joint_torques(dict(list(zip(robot.joint_names(),torque))))
 
 
-def plot_result(f_controlled, f_d ,controlled_pose,x_d,z, f_lambda):
+def plot_result(f_controlled, f_d ,controlled_pose,x_d,z, f_lambda,T):
 
-    time_array = np.arange(len(controlled_pose[0]))*0.001
+    time_array = np.arange(len(controlled_pose[0]))*T
     
 
     plt.subplot(221)
@@ -195,7 +207,7 @@ def plot_result(f_controlled, f_d ,controlled_pose,x_d,z, f_lambda):
     plt.xlabel("Real time [s]")
     plt.legend()
     
-
+    
     plt.subplot(223)
     plt.title("Orientation")
 
@@ -212,9 +224,13 @@ def plot_result(f_controlled, f_d ,controlled_pose,x_d,z, f_lambda):
 
     plt.subplot(224)
     plt.title("Applied control")
-    plt.plot(time_array, f_lambda[:], label="f_lambda")
+    plt.plot(time_array, f_lambda[0][:], label="f_lambda (a)")
+    plt.plot(time_array, f_lambda[1][:], label="f_lambda (b)")
+    plt.plot(time_array, f_lambda[2][:], label="f_lambda (c)")
+    plt.plot(time_array, f_lambda[3][:], label="f_lambda (sum)")
     plt.xlabel("Real time [s]")
     plt.legend()
+    
      
 
 
@@ -224,13 +240,13 @@ def plot_result(f_controlled, f_d ,controlled_pose,x_d,z, f_lambda):
 
 if __name__ == "__main__":
     rospy.init_node("impedance_control")
-    publish_rate = 500
+    publish_rate = 250
     rate = rospy.Rate(publish_rate)
     
     robot = PandaArm()
     robot.move_to_neutral() 
 
-    max_num_it=5500
+    max_num_it=7500
     # TO BE INITIALISED BEFORE LOOP
     T = 0.001*(1000/publish_rate) #correct for sim
 
@@ -242,9 +258,10 @@ if __name__ == "__main__":
 
     #for plotting
     controlled_pose = np.zeros((5,max_num_it))
-    controlled_force = np.zeros(max_num_it)
+    z_force_history = np.zeros(max_num_it)
     z_position = np.zeros(max_num_it)
-    f_lambda_history = np.zeros(max_num_it)
+    f_lambda_history = np.zeros((4,max_num_it))
+    trajectory = np.zeros((3,max_num_it))#
 
     for i in range(max_num_it):
         # IN LOOP:
@@ -255,9 +272,14 @@ if __name__ == "__main__":
         r_d = get_r_d(i,r_d)
         r_d_history[:,i] = r_d
 
-        f_lambda = calculate_f_lambda(i, T, S_f ,C , K_Dlambda, K_Plambda, lambda_d_history, lambda_d)
+        z_force_history[i] = get_lambda()
+        low_passed_force = low_pass(z_force_history,i)
+
+        a,b,c = calculate_f_lambda(i, T, S_f ,C , K_Dlambda, K_Plambda, lambda_d_history, lambda_d,low_passed_force)
+        a = 0
+        f_lambda = (a+b+c)
         alpha_v = calculate_alpha_v(i,T,r_d_history, r_d,K_Pr,K_Dr)
-        alpha = calculate_alpha(S_v,alpha_v,C,S_f,f_lambda)
+        alpha = calculate_alpha(S_v,alpha_v,C,S_f,-f_lambda)
         perform_torque(alpha)
         rate.sleep()
 
@@ -269,9 +291,15 @@ if __name__ == "__main__":
             print('')
 
         controlled_pose[:,i] = get_r()
-        controlled_force[i] = get_lambda()
         z_position[i] = robot.endpoint_pose()['position'][2]
-        f_lambda_history[i] = f_lambda
+
+        f_lambda_history[0][i] = a
+        f_lambda_history[1][i] = b
+        f_lambda_history[2][i] = c
+        f_lambda_history[3][i] = f_lambda
+
+        trajectory[:,i] = np.array([robot.endpoint_pose()['position'][0],robot.endpoint_pose()['position'][1],robot.endpoint_pose()['position'][2]])#
     
-    plot_result(controlled_force,lambda_d_history,controlled_pose,r_d_history,z_position, f_lambda_history)
+    np.save('trajectory.npy',trajectory)#
+    plot_result(z_force_history,lambda_d_history,controlled_pose,r_d_history,z_position, f_lambda_history,T)
 

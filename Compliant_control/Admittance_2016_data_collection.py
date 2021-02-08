@@ -14,6 +14,7 @@ from panda_robot import PandaArm
 
 #from rviz_markers import RvizMarkers
 import matplotlib.pyplot as plt
+from scipy.spatial.transform import Rotation
 
 np.set_printoptions(precision=2)
 
@@ -93,46 +94,62 @@ def calculate_x(T,x_list, force_list,M = 1*np.array([1, 1, 1]),B = 60*np.array([
     x_z = (T**2 * force_list[2][0] + 2* T**2 * force_list[2][1]+ T**2 * force_list[2][2]-(2*K[2]*T**2-8*M[2])*x_list[2][0]-(4*M[2] -2*B[2]*T+K[2]*T**2)*x_list[2][1])/(4*M[2]+2*B[2]*T+K[2]*T**2)
     return np.array([x_x,x_y,x_z]) 
 
-def plot_result(a,b,c,F_d,x_d):
+def plot_result(force,pos,x_d,T): #(sensor_readings,x_list,x_d_list)
 
-    time_array = np.arange(len(F_d[0]))*0.001
+    time_array = np.arange(len(F_d[0]))*T
     
 
     plt.subplot(121)
     plt.title("Sensed external wrench")
-    """
-    plt.plot(a[0,:], label="force x [N]")
-    plt.plot(a[1,:], label="force y [N]")"""
-    plt.plot(time_array, a[2,:], label="force z [N]")
-    """
-    plt.plot(a[3,:], label="torque x [Nm]")
-    plt.plot(a[4,:], label="torque y [Nm]")
-    plt.plot(a[5,:], label="torque z [Nm]")
-    """
+    
+    plt.plot(time_array,force[0,:], label="force x [N]")
+    plt.plot(time_array,force[1,:], label="force y [N]")
+    plt.plot(time_array, force[2,:], label="force z [N]")
+    
+    plt.plot(time_array,force[3,:], label="torque x [Nm]")
+    plt.plot(time_array,force[4,:], label="torque y [Nm]")
+    plt.plot(time_array,force[5,:], label="torque z [Nm]")
+    
     plt.plot(time_array, F_d[2,:], label = " desired z-force [N]", color='b',linestyle='dashed')
     plt.xlabel("Real time [s]")
     plt.legend()
+
     plt.subplot(122)
     plt.title("position")
-    plt.plot(time_array, c[0,:], label = "true x [m]")
-    plt.plot(time_array, c[1,:], label = "true y [m]")
-    plt.plot(time_array, c[2,:], label = "true  z [m]")
+    plt.plot(time_array, pos[0,:], label = "true x [m]")
+    plt.plot(time_array, pos[1,:], label = "true y [m]")
+    plt.plot(time_array, pos[2,:], label = "true  z [m]")
     plt.plot(time_array, x_d[0,:], label = "desired x [m]", color='b',linestyle='dashed')
     plt.plot(time_array, x_d[1,:], label = "desired y [m]", color='C1',linestyle='dashed')
     plt.plot(time_array, x_d[2,:], label = "desired z [m]", color='g',linestyle='dashed')
-    plt.plot(time_array, b[2,:], label = "compliant z [m]", color='g',linestyle='dotted')
-
     plt.xlabel("Real time [s]")
     plt.legend()
+
+    plt.legend()
+
     plt.show()
+
+def get_ori_degrees():
+    quat_as_list = np.array([robot.endpoint_pose()['orientation'].x,robot.endpoint_pose()['orientation'].y,robot.endpoint_pose()['orientation'].z,robot.endpoint_pose()['orientation'].w])
+    rot = Rotation.from_quat(quat_as_list)
+    rot_euler = rot.as_euler('xyz', degrees=True)
+    return np.array([(rot_euler[0]-np.sign(rot_euler[0])*180),rot_euler[1],rot_euler[2]])
+
+def get_ori_degrees_error(ori_d):
+    return get_ori_degrees()-ori_d
+
 
 if __name__ == "__main__":
     rospy.init_node("admittance_control")
     robot = PandaArm()
+    publish_rate = 500
+    rate = rospy.Rate(publish_rate)
+
     robot.move_to_neutral() 
 
-    max_num_it=12000 # 12 seconds
-    T=0.001 # Controller loop period [correct in sim]
+    max_num_it=5500
+    # TO BE INITIALISED BEFORE LOOP
+    T = 0.001*(1000/publish_rate) #correct for sim
 
     F_d =np.array([0,0,0])
     goal_ori = robot.endpoint_pose()['orientation'] #goal = current
@@ -144,43 +161,34 @@ if __name__ == "__main__":
     sensor_readings = np.zeros((6,max_num_it))
     x_c_list = np.zeros((3,max_num_it))
     x_list = np.zeros((3,max_num_it))
-    x_d_list = np.zeros((3,max_num_it))
+    x_d_list = np.load('/home/martin/plotting master/trajectory.npy')
+    #x_d_list = np.zeros((6,max_num_it))
     F_d_list = np.zeros((3,max_num_it))
     f_list = np.zeros((3,3))
     current_x = np.zeros(3)
     x_history = np.zeros((3,3))
+    
+    #For plotting
+    ori_degrees_error_history = np.zeros((3,max_num_it))
+    desired_ori_degrees = get_ori_degrees()
                             
     for i in range(max_num_it):
         #for plotting
         sensor_readings[:,i]=np.append(robot.endpoint_effort()['force'],robot.endpoint_effort()['torque'])
-        x_d_list[:,i] = x_d
-        x_c_list[:,i] = x_d + current_x
+
         x_list[:,i] = robot.endpoint_pose()['position']
         F_d_list[:,i] = F_d
 
-        if i < 1800:
-            x_d[2] -= 0.00005
-        
-        if i == 1700:
-            F_d =np.array([0,0,15])
-        
-        
-        if i > 3000 and i < 7000: 
-            x_d[0] += 0.00005#move 20 cm in the x direction 
-        
-        
-        if  i > 1700 and i%3==0: 
-            update_force_list(f_list)
-            current_x = calculate_x(T,x_history, f_list)
-            update_x_history(x_history,current_x)
+
+
             
         """chose one of the two position controllers: """
         #raw_position_control(x_d,current_x,goal_ori) #control x_c = x_d + x(k)
-        PD_torque_control(x_d,current_x,goal_ori)
+        PD_torque_control(x_d[:,i],0,goal_ori)
         
         #printing and plotting
         if i%100==0:
             print(i,', pos:',robot.endpoint_pose()['position'],' F: ', robot.endpoint_effort()['force'][2])#' force measured: ',robot.endpoint_effort()['force'])
-    plot_result(sensor_readings,x_c_list,x_list,F_d_list,x_d_list)
+    plot_result(sensor_readings,x_list,x_d_list,T)
 
 
