@@ -96,7 +96,7 @@ def calculate_x(T,x_list, force_list,M = 1*np.array([1, 1, 1]),B = 60*np.array([
 
 def plot_result(force,pos,x_d,T): #(sensor_readings,x_list,x_d_list)
 
-    time_array = np.arange(len(F_d[0]))*T
+    time_array = np.arange(len(pos[0]))*T
     
 
     plt.subplot(121)
@@ -110,7 +110,7 @@ def plot_result(force,pos,x_d,T): #(sensor_readings,x_list,x_d_list)
     plt.plot(time_array,force[4,:], label="torque y [Nm]")
     plt.plot(time_array,force[5,:], label="torque z [Nm]")
     
-    plt.plot(time_array, F_d[2,:], label = " desired z-force [N]", color='b',linestyle='dashed')
+    #plt.plot(time_array, F_d[2,:], label = " desired z-force [N]", color='b',linestyle='dashed')
     plt.xlabel("Real time [s]")
     plt.legend()
 
@@ -142,12 +142,12 @@ def get_ori_degrees_error(ori_d):
 if __name__ == "__main__":
     rospy.init_node("admittance_control")
     robot = PandaArm()
-    publish_rate = 500
+    publish_rate = 250
     rate = rospy.Rate(publish_rate)
 
     robot.move_to_neutral() 
 
-    max_num_it=5500
+    max_num_it=7500
     # TO BE INITIALISED BEFORE LOOP
     T = 0.001*(1000/publish_rate) #correct for sim
 
@@ -161,7 +161,7 @@ if __name__ == "__main__":
     sensor_readings = np.zeros((6,max_num_it))
     x_c_list = np.zeros((3,max_num_it))
     x_list = np.zeros((3,max_num_it))
-    x_d_list = np.load('/home/martin/plotting master/trajectory.npy')
+    x_d_list = np.load('/home/martin/trajectory.npy')
     #x_d_list = np.zeros((6,max_num_it))
     F_d_list = np.zeros((3,max_num_it))
     f_list = np.zeros((3,3))
@@ -184,11 +184,13 @@ if __name__ == "__main__":
             
         """chose one of the two position controllers: """
         #raw_position_control(x_d,current_x,goal_ori) #control x_c = x_d + x(k)
-        PD_torque_control(x_d[:,i],0,goal_ori)
+        PD_torque_control(x_d_list[:,i],0,goal_ori)
+        rate.sleep()
         
         #printing and plotting
         if i%100==0:
             print(i,', pos:',robot.endpoint_pose()['position'],' F: ', robot.endpoint_effort()['force'][2])#' force measured: ',robot.endpoint_effort()['force'])
+    np.save('trajectory_wrenches01.npy',sensor_readings)
     plot_result(sensor_readings,x_list,x_d_list,T)
 
 
