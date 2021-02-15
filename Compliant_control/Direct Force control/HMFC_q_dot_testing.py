@@ -40,7 +40,7 @@ K = np.array([[1, 0, 0, 0, 0, 0],
 
 C = np.linalg.inv(K)
 
-max_num_it=7500
+max_num_it=1000
 
 K_Plambda = 45 #random (force gains)
 K_Dlambda = K_Plambda*0.07 #K_Plambda*0.633 #random
@@ -74,6 +74,9 @@ def get_joint_velocities():
 def get_v():
     return (np.array([robot.endpoint_velocity()['linear'][0],robot.endpoint_velocity()['linear'][1],robot.endpoint_velocity()['angular'][0],robot.endpoint_velocity()['angular'][1],robot.endpoint_velocity()['angular'][2]])).reshape([5,1])
 
+def get_cartesian_v():
+    return np.array([robot.endpoint_velocity()['linear'][0],robot.endpoint_velocity()['linear'][1],robot.endpoint_velocity()['linear'][2]])
+
 def get_joint_angles():
     return np.array([robot.joint_angle(robot.joint_names()[0]),robot.joint_angle(robot.joint_names()[1]),robot.joint_angle(robot.joint_names()[2]),robot.joint_angle(robot.joint_names()[3]),robot.joint_angle(robot.joint_names()[4]),robot.joint_angle(robot.joint_names()[5]),robot.joint_angle(robot.joint_names()[6])])
 
@@ -92,20 +95,12 @@ def get_h_e():
     return np.array([0,0,robot.endpoint_effort()['force'][2],0,0,0])
 
 def get_lambda_dot(S_f_inv,h_e_hist,i,T):
-    h_e_dot = get_dot_list(h_e_hist,i,T)/40
-    cap = 50
+    h_e_dot = get_derivative_of_vector(h_e_hist,i,T)/30#40
+    cap = 20#50
     if abs(h_e_dot[2]) > cap:
         h_e_dot[2] = np.sign(h_e_dot[2])*cap
     return np.dot(S_f_inv,h_e_dot)
 
-def get_lambda_d(i,original_d=15):
-    if i < 1500:
-        return  float(i)/100
-    elif i > 2000 and i < 4000:
-        new_lambda_d = original_d + 5*np.sin(i*0.001*2*np.pi)
-        return new_lambda_d
-    else:
-        return original_d
 
 def get_r_d(max_num_it):
     a = np.zeros((5,max_num_it))
@@ -129,7 +124,7 @@ def get_F_d(max_num_it,T): #current
     s = np.zeros(max_num_it)
     a[0:100] = 0.0005/T**2
     a[100:200] = - 0.0005/T**2
-    if max_num_it > 550:
+    if max_num_it > 1100:
         a[500:550] = 0.0002/T**2
     if max_num_it >4001:
         a[1500:1550]=-0.0002/T**2
@@ -157,15 +152,17 @@ def get_S_inv(S,C):
 def get_K_dot(S_f,S_f_inv,C):
     return np.array(np.linalg.multi_dot([S_f,S_f_inv,np.linalg.inv(C)])).reshape([6,6])
 
-def get_dot_list(history,iteration,T):
+def get_derivative_of_vector(history,iteration,T):
+    size = history.shape[0]
     if iteration > 0:
-        return ((history[:,iteration]-history[:,iteration-1]).reshape([6,1])/T).reshape([6,1])
+        #return ((history[:,iteration]-history[:,iteration-1]).reshape([size,1])/T).reshape([size,1])
+        return np.subtract(history[:,iteration],history[:,iteration-1])/T
     else:
-        return np.zeros(6).reshape([6,1])
+        return np.zeros(size)#.reshape([size,1])
 """
 def get_ddot_list(history,iteration,T):
     if iteration > 1:
-        return ((get_dot_list(history,iteration,T) - get_dot_list(history,iteration-1,T)).reshape([5,1])/T).reshape([5,1])
+        return ((get_derivative_of_vector(history,iteration,T) - get_derivative_of_vector(history,iteration-1,T)).reshape([5,1])/T).reshape([5,1])
     else:
         return np.zeros(5).reshape([5,1])
 
@@ -217,7 +214,7 @@ def perform_torque(alpha,z_offset):
     robot.set_joint_torques(dict(list(zip(robot.joint_names(),torque))))
 
 
-def plot_result(f_controlled, f_d ,controlled_pose,x_d,z, f_lambda,T, lambda_dot,f_d_dot, joint_vel):
+def plot_result(f_controlled, f_d ,controlled_pose,x_d,z, f_lambda,T, lambda_dot,f_d_dot, joint_data,v_hist,joint_data_II):
 
     time_array = np.arange(len(controlled_pose[0]))*T
     
@@ -246,14 +243,14 @@ def plot_result(f_controlled, f_d ,controlled_pose,x_d,z, f_lambda,T, lambda_dot
     
     
     plt.subplot(233)
-    plt.title("Orientation")
-    plt.plot(time_array, controlled_pose[2,:], label = "true  Ori_x [degrees]")
-    plt.plot(time_array, controlled_pose[3,:], label = "true  Ori_y [degrees]")
-    plt.plot(time_array, controlled_pose[4,:], label = "true  Ori_z [degrees]")
-
+    plt.title("Orientation error")
+    plt.plot(time_array, x_d[2,:]-controlled_pose[2,:], label = "error  Ori_x [degrees]")
+    plt.plot(time_array, x_d[3,:]-controlled_pose[3,:], label = "error  Ori_y [degrees]")
+    plt.plot(time_array, x_d[4,:]-controlled_pose[4,:], label = "error  Ori_z [degrees]")
+    """
     plt.plot(time_array, x_d[2,:], label = "desired Ori_x [degrees]", color='b',linestyle='dashed')
     plt.plot(time_array, x_d[3,:], label = "desired Ori_y [degrees]", color='C1',linestyle='dashed')
-    plt.plot(time_array, x_d[4,:], label = "desired Ori_z [degrees]", color='g',linestyle='dashed')
+    plt.plot(time_array, x_d[4,:], label = "desired Ori_z [degrees]", color='g',linestyle='dashed')"""
     plt.xlabel("Real time [s]")
     plt.legend()
 
@@ -266,23 +263,42 @@ def plot_result(f_controlled, f_d ,controlled_pose,x_d,z, f_lambda,T, lambda_dot
     plt.legend()
     
     plt.subplot(235)
-    plt.title("Applied control")
-    plt.plot(time_array, f_lambda[0][:], label="f_lambda (a)")
-    plt.plot(time_array, f_lambda[1][:], label="f_lambda (b)")
-    plt.plot(time_array, f_lambda[2][:], label="f_lambda (c)")
+    plt.title("Force control")
+    plt.plot(time_array, f_lambda[0][:], label="f_lambda (f_ddot-related)")
+    plt.plot(time_array, f_lambda[1][:], label="f_lambda (f_dot-related)")
+    plt.plot(time_array, f_lambda[2][:], label="f_lambda (f-related)")
     plt.plot(time_array, f_lambda[3][:], label="f_lambda (sum)")
     plt.xlabel("Real time [s]")
     plt.legend()
+
     
+
+
+
     plt.subplot(236)
-    plt.title("joint angles")
-    plt.plot(time_array, joint_vel[0], label='joint0')
-    plt.plot(time_array, joint_vel[1], label='joint1')
-    plt.plot(time_array, joint_vel[2], label='joint2')
-    plt.plot(time_array, joint_vel[3], label='joint3')
-    plt.plot(time_array, joint_vel[4], label='joint4')
-    plt.plot(time_array, joint_vel[5], label='joint5')
-    plt.plot(time_array, joint_vel[6], label='joint6')
+    """
+    plt.title('cartesian velocities')
+    plt.plot(time_array, v_hist[0], label='x velocity')
+    plt.plot(time_array, v_hist[1], label='y velocity')
+    plt.plot(time_array, v_hist[2], label='z velocity')
+    """
+    plt.title("joint velocities")
+    #plt.plot(time_array, joint_data[0], label='joint0',linestyle='dashed')
+    #plt.plot(time_array, joint_data[1], label='joint1',linestyle='dashed')
+    #plt.plot(time_array, joint_data[2], label='joint2',linestyle='dashed')
+    plt.plot(time_array, joint_data[3], label='joint3 (joint_velocity())',linestyle='dashed', color='C3')
+    #plt.plot(time_array, joint_data[4], label='joint4 (joint_velocity()) ',linestyle='dashed',color='C4')
+    #plt.plot(time_array, joint_data[5], label='joint5',linestyle='dashed')
+    #plt.plot(time_array, joint_data[6], label='joint6 (joint_velocity())',linestyle='dashed')
+
+    #plt.plot(time_array, joint_data_II[0], label='joint0',color='b')
+    #plt.plot(time_array, joint_data_II[1], label='joint1',color='C1')
+    #plt.plot(time_array, joint_data_II[2], label='joint2',color='g')
+    plt.plot(time_array, joint_data_II[3], label='joint3',color='C3')
+    #plt.plot(time_array, joint_data_II[4], label='joint4',color='C4')
+    #plt.plot(time_array, joint_data_II[5], label='joint5',color='C5')
+    #plt.plot(time_array, joint_data_II[6], label='joint6',color='C6')
+    
     plt.xlabel("Real time [s]")
     plt.legend()
 
@@ -317,8 +333,10 @@ if __name__ == "__main__":
     lambda_dot_history = np.zeros(max_num_it)
     trajectory = np.zeros((3,max_num_it))
     joint_vel_list = np.zeros((7,max_num_it))
+    joint_vel_hist_II = np.zeros((7,max_num_it))
     joint_angle_list = np.zeros((7,max_num_it))
     h_e_hist = np.zeros((6,max_num_it))
+    v_hist = np.zeros((3,max_num_it))
 
     r_d_ddot, r_d_dot, r_d = get_r_d(max_num_it)
     f_d_ddot,f_d_dot, f_d = get_F_d(max_num_it,T)
@@ -335,7 +353,9 @@ if __name__ == "__main__":
 
         a,b,c, lambda_dot_history[i] = calculate_f_lambda(f_d_ddot[i], f_d_dot[i], f_d[i], i, T, S_f ,C , K_Dlambda, K_Plambda, z_force, h_e_hist)
         f_lambda = a+b+c
-        alpha_v = calculate_alpha_v(i,T,r_d_ddot[:,i], r_d_dot[:,i], r_d[:,i], K_Pr,K_Dr)
+
+        alpha_v= calculate_alpha_v(i,T,r_d_ddot[:,i], r_d_dot[:,i], r_d[:,i], K_Pr,K_Dr)
+        
         alpha = calculate_alpha(S_v,alpha_v,C,S_f,-f_lambda)
         perform_torque(alpha,z_offsets[i])
         rate.sleep()
@@ -350,15 +370,19 @@ if __name__ == "__main__":
         controlled_pose[:,i] = get_r()
         z_position[i] = robot.endpoint_pose()['position'][2]
         z_force_history[i] = z_force
-        #joint_vel_list[:,i]=get_joint_velocities()
         joint_angle_list[:,i] = get_joint_angles()
+        joint_vel_list[:,i]= get_joint_velocities()
+        joint_vel_hist_II[:,i] = get_derivative_of_vector(joint_angle_list,i,T)
+        v_hist[:,i] = get_cartesian_v()
+
         f_lambda_history[0][i] = a
         f_lambda_history[1][i] = b
         f_lambda_history[2][i] = c
         f_lambda_history[3][i] = f_lambda
 
+
         #trajectory[:,i] = np.array([robot.endpoint_pose()['position'][0],robot.endpoint_pose()['position'][1],robot.endpoint_pose()['position'][2]])#
     
     #np.save('trajectory.npy',trajectory)#
-    plot_result(z_force_history,f_d,controlled_pose,r_d,z_position, f_lambda_history,T,lambda_dot_history,f_d_dot,joint_angle_list)
+    plot_result(z_force_history,f_d,controlled_pose,r_d,z_position, f_lambda_history,T,lambda_dot_history,f_d_dot,joint_vel_list,v_hist,joint_vel_hist_II)
 

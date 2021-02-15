@@ -42,12 +42,12 @@ C = np.linalg.inv(K)
 
 max_num_it=7500
 
-K_Plambda = 15 #random (force gains)
-K_Dlambda = K_Plambda*0.1# 633 #K_Plambda*0.633 #random
+K_Plambda = 55 #random (force gains)
+K_Dlambda = K_Plambda*0.15 #K_Plambda*0.633 #random
 
 #Position:
 Pp = 120 #proportional gain for position (x and y)
-Dp = 12# Pp*0.633 #damping position (x and y)
+Dp = Pp*0.1# Pp*0.633 #damping position (x and y)
 
 #Orientation
 Po = 20 #proportional gain for orientation
@@ -86,6 +86,14 @@ def get_lambda():
     return robot.endpoint_effort()['force'][2]
     #return 0 #fake feedback 
 
+def get_h_e():
+    return np.array([0,0,robot.endpoint_effort()['force'][2],0,0,0])
+
+def get_lambda_dot(S_f_inv,h_e_hist,i,T):
+    h_e_dot = get_dot_list(h_e_hist,i,T)/100
+    if abs(h_e_dot[2]) > 20:
+        h_e_dot[2] = np.sign(h_e_dot[2])*20
+    return np.dot(S_f_inv,h_e_dot)
 
 def get_lambda_d(i,original_d=15):
     if i < 1500:
@@ -145,13 +153,13 @@ def get_S_inv(S,C):
     
 def get_K_dot(S_f,S_f_inv,C):
     return np.array(np.linalg.multi_dot([S_f,S_f_inv,np.linalg.inv(C)])).reshape([6,6])
-"""
+
 def get_dot_list(history,iteration,T):
     if iteration > 0:
-        return ((history[:,iteration]-history[:,iteration-1]).reshape([5,1])/T).reshape([5,1])
+        return ((history[:,iteration]-history[:,iteration-1]).reshape([6,1])/T).reshape([6,1])
     else:
-        return np.zeros(5).reshape([5,1])
-
+        return np.zeros(6).reshape([6,1])
+"""
 def get_ddot_list(history,iteration,T):
     if iteration > 1:
         return ((get_dot_list(history,iteration,T) - get_dot_list(history,iteration-1,T)).reshape([5,1])/T).reshape([5,1])
@@ -178,10 +186,11 @@ def low_pass(history, iteration):
 """
 
 # CALCULATE TORQUE
-def calculate_f_lambda(f_d_ddot, f_d_dot, f_d, i,T, S_f,C,K_Dlambda,K_Plambda, z_force):
+def calculate_f_lambda(f_d_ddot, f_d_dot, f_d, i,T, S_f,C,K_Dlambda,K_Plambda, z_force,h_e_hist):
     S_f_inv = get_S_inv(S_f,C)
     K_dot = get_K_dot(S_f,S_f_inv,C)
-    lambda_dot = (np.linalg.multi_dot([S_f_inv,K_dot,robot.jacobian(),get_joint_velocities()]))+9.5
+    #lambda_dot = (np.linalg.multi_dot([S_f_inv,K_dot,robot.jacobian(),get_joint_velocities()]))+9.5
+    lambda_dot = get_lambda_dot(S_f_inv,h_e_hist,i,T)
     lambda_a = f_d_ddot
     lambda_b = np.array(np.dot(K_Dlambda,(f_d_dot-lambda_dot)))
     lambda_c = np.dot(K_Plambda,(f_d-z_force))
@@ -205,59 +214,55 @@ def perform_torque(alpha,z_offset):
     robot.set_joint_torques(dict(list(zip(robot.joint_names(),torque))))
 
 
-def plot_result(f_controlled, f_d ,controlled_pose,x_d,z, f_lambda,T, lambda_dot,f_d_dot):
+def plot_result(f_controlled, f_d ,controlled_pose,x_d,z, f_lambda,T, lambda_dot,f_d_dot, joint_vel):
 
     time_array = np.arange(len(controlled_pose[0]))*T
     
 
-    plt.subplot(221)
+    plt.subplot(231)
     plt.title("External force")
-    
     plt.plot(time_array, f_controlled[:], label="force z [N]")
     #plt.plot(time_array, f_controlled[2,:], label="torque y [Nm]")
     plt.plot(time_array, f_d[:], label="desired force z [N]", color='b',linestyle='dashed')
     #plt.plot(time_array, f_d[1,:], label="desired torque x [Nm]", color='C1',linestyle='dashed')
     #plt.plot(time_array, f_d[2,:], label="desired torque y [Nm]", color='g',linestyle='dashed')
-
     plt.xlabel("Real time [s]")
     plt.legend()
 
 
-    plt.subplot(222)
+    plt.subplot(232)
     plt.title("Position")
-
     plt.plot(time_array, controlled_pose[0,:], label = "true x [m]")
     plt.plot(time_array, controlled_pose[1,:], label = "true y [m]")
     plt.plot(time_array, z[:], label = "true z [m]")
 
     plt.plot(time_array, x_d[0,:], label = "desired x [m]", color='b',linestyle='dashed')
     plt.plot(time_array, x_d[1,:], label = "desired y [m]", color='C1',linestyle='dashed')
- 
-
-
     plt.xlabel("Real time [s]")
     plt.legend()
     
     
-    plt.subplot(223)
-    #plt.title("Orientation")
+    plt.subplot(233)
+    plt.title("Orientation error")
+    plt.plot(time_array, x_d[2,:]-controlled_pose[2,:], label = "error  Ori_x [degrees]")
+    plt.plot(time_array, x_d[3,:]-controlled_pose[3,:], label = "error  Ori_y [degrees]")
+    plt.plot(time_array, x_d[4,:]-controlled_pose[4,:], label = "error  Ori_z [degrees]")
+    """
+    plt.plot(time_array, x_d[2,:], label = "desired Ori_x [degrees]", color='b',linestyle='dashed')
+    plt.plot(time_array, x_d[3,:], label = "desired Ori_y [degrees]", color='C1',linestyle='dashed')
+    plt.plot(time_array, x_d[4,:], label = "desired Ori_z [degrees]", color='g',linestyle='dashed')"""
+    plt.xlabel("Real time [s]")
+    plt.legend()
+
+    plt.subplot(234)
     plt.title("Estimated force-derivative (lambda_dot)")
     plt.plot(time_array, lambda_dot, label = "lambda_dot")###
     plt.plot(time_array, f_d_dot, label = "lambda_dot_desired",linestyle='dashed')
-    plt.plot(time_array, f_d_dot-lambda_dot, label = "difference")
-    """
-    plt.plot(time_array, controlled_pose[2,:], label = "true  Ori_x [degrees]")
-    plt.plot(time_array, controlled_pose[3,:], label = "true  Ori_y [degrees]")
-    plt.plot(time_array, controlled_pose[4,:], label = "true  Ori_z [degrees]")
-
-    plt.plot(time_array, x_d[2,:], label = "desired Ori_x [degrees]", color='b',linestyle='dashed')
-    plt.plot(time_array, x_d[3,:], label = "desired Ori_y [degrees]", color='C1',linestyle='dashed')
-    plt.plot(time_array, x_d[4,:], label = "desired Ori_z [degrees]", color='g',linestyle='dashed')
-    """
+    #plt.plot(time_array, f_d_dot-lambda_dot, label = "difference")
     plt.xlabel("Real time [s]")
     plt.legend()
-
-    plt.subplot(224)
+    
+    plt.subplot(235)
     plt.title("Applied control")
     plt.plot(time_array, f_lambda[0][:], label="f_lambda (a)")
     plt.plot(time_array, f_lambda[1][:], label="f_lambda (b)")
@@ -266,7 +271,17 @@ def plot_result(f_controlled, f_d ,controlled_pose,x_d,z, f_lambda,T, lambda_dot
     plt.xlabel("Real time [s]")
     plt.legend()
     
-     
+    plt.subplot(236)
+    plt.title("joint velocities")
+    plt.plot(time_array, joint_vel[0], label='joint0')
+    plt.plot(time_array, joint_vel[1], label='joint1')
+    plt.plot(time_array, joint_vel[2], label='joint2')
+    plt.plot(time_array, joint_vel[3], label='joint3')
+    plt.plot(time_array, joint_vel[4], label='joint4')
+    plt.plot(time_array, joint_vel[5], label='joint5')
+    plt.plot(time_array, joint_vel[6], label='joint6')
+    plt.xlabel("Real time [s]")
+    plt.legend()
 
 
     plt.show()
@@ -298,6 +313,8 @@ if __name__ == "__main__":
     f_lambda_history = np.zeros((4,max_num_it))
     lambda_dot_history = np.zeros(max_num_it)
     trajectory = np.zeros((3,max_num_it))
+    joint_vel_list = np.zeros((7,max_num_it))
+    h_e_hist = np.zeros((6,max_num_it))
 
     r_d_ddot, r_d_dot, r_d = get_r_d(max_num_it)
     f_d_ddot,f_d_dot, f_d = get_F_d(max_num_it,T)
@@ -309,10 +326,10 @@ if __name__ == "__main__":
         
 
         z_force = get_lambda()-z_offsets[i] ###
-        z_force_history[i] = z_force
+        h_e_hist[:,i] = get_h_e()
         #z_force = low_pass(z_force_history,i) #####
 
-        a,b,c, lambda_dot_history[i] = calculate_f_lambda(f_d_ddot[i], f_d_dot[i], f_d[i], i, T, S_f ,C , K_Dlambda, K_Plambda, z_force)
+        a,b,c, lambda_dot_history[i] = calculate_f_lambda(f_d_ddot[i], f_d_dot[i], f_d[i], i, T, S_f ,C , K_Dlambda, K_Plambda, z_force, h_e_hist)
         f_lambda = a+b+c
         alpha_v = calculate_alpha_v(i,T,r_d_ddot[:,i], r_d_dot[:,i], r_d[:,i], K_Pr,K_Dr)
         alpha = calculate_alpha(S_v,alpha_v,C,S_f,-f_lambda)
@@ -328,7 +345,8 @@ if __name__ == "__main__":
 
         controlled_pose[:,i] = get_r()
         z_position[i] = robot.endpoint_pose()['position'][2]
-
+        z_force_history[i] = z_force
+        joint_vel_list[:,i]=get_joint_velocities()
         f_lambda_history[0][i] = a
         f_lambda_history[1][i] = b
         f_lambda_history[2][i] = c
@@ -337,5 +355,5 @@ if __name__ == "__main__":
         #trajectory[:,i] = np.array([robot.endpoint_pose()['position'][0],robot.endpoint_pose()['position'][1],robot.endpoint_pose()['position'][2]])#
     
     #np.save('trajectory.npy',trajectory)#
-    plot_result(z_force_history,f_d,controlled_pose,r_d,z_position, f_lambda_history,T,lambda_dot_history,f_d_dot)
+    plot_result(z_force_history,f_d,controlled_pose,r_d,z_position, f_lambda_history,T,lambda_dot_history,f_d_dot,joint_vel_list)
 
