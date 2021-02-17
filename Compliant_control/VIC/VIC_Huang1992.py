@@ -27,11 +27,11 @@ K = 50 * np.identity(6)
 B = K*0.633
 M = np.identity(6)
 
-M_tilde_0, B_tilde_0, K_tilde_0 = np.zeros((6,6))
-
-
 #
-K_v, P, gamma = np.identity(6) #NOT CORRECT
+K_v = np.identity(6)
+
+P = np.identity(6)
+gamma = np.identity(18)
 
 
 
@@ -46,13 +46,20 @@ def get_derivative_of_vector(history,iteration,T):
         return np.zeros(size)#.reshape([size,1])
 
 def get_xi(goal_ori, p_d, x_d_dot, x_d_ddot, v_history, i, T):
-    return np.array([-get_delta_x(goal_ori, p_d),-get_x_dot_delta(x_d_dot),-get_x_ddot_delta(x_d_ddot,v_history,i,T)])
+    E = -get_delta_x(goal_ori, p_d)
+    E_dot = -get_x_dot_delta(x_d_dot, two_dim = False)
+    E_ddot = -get_x_ddot_delta(x_d_ddot,v_history,i,T)
+    E_diag = np.diagflat(E)
+    E_dot_diag = np.diagflat(E_dot)
+    E_ddot_diag = np.diagflat(E_ddot)
+    return np.block([E_diag,E_dot_diag,E_ddot_diag])
 
 def get_lambda_dot(gamma,xi,K_v,P,F_d):
-    return -np.linalg.multi_dot([np.linalg.inv(gamma),xi.T,np.linalg.inv(K_v),P,F_d-get_F_ext(two_dim=True)])
+    return np.linalg.multi_dot([-np.linalg.inv(gamma),xi.T,np.linalg.inv(K_v),P,get_F_ext(two_dim=True)-F_d.reshape([6,1])])
 
 def update_MBK_hat(lam,M,B,K):
-    return  M + lam[0], B + lam[1], K + lam[2]
+    return  M + np.diagflat(lam[0:6]), B + np.diagflat(lam[6:12]), K + np.diagflat(lam[12:18])
+    
 
 
 def get_W(inv = False):
@@ -69,30 +76,6 @@ def get_F_ext(two_dim = False):
     else:
         return np.array([0,0,robot.endpoint_effort()['force'][2],0,0,0])
 
-def get_F_d(max_num_it,T): #current
-    a = np.zeros(max_num_it)
-    v = np.zeros(max_num_it)
-    s = np.zeros(max_num_it)
-    a[0:100] = 0.0005/T**2
-    a[100:200] = - 0.0005/T**2
-    if max_num_it > 1100:
-        a[500:550] = 0.0002/T**2
-    if max_num_it >4001:
-        a[1500:1550]=-0.0002/T**2
-        it = 2000
-        while it <= 4000:
-            a[it]= (-9*(np.pi**2)*(T/4)**2*np.sin(it*T/4*2*np.pi+np.pi/2))/T**2
-            it+=1
-
-        a[4001]=0.0001/T**2
-
-    for i in range(max_num_it):
-        if i>0:
-            v[i]=v[i-1]+a[i-1]*T
-            s[i]=s[i-1]+v[i-1]*T
-
-    return s,v
-
 def get_p(two_dim=False):#TO DO
     #pos = robot.endpoint_pose()['position']
     #ori = np.asarray([robot.endpoint_pose()['orientation'].x,robot.endpoint_pose()['orientation'].y,robot.endpoint_pose()['orientation'].z,robot.endpoint_pose()['orientation'].w])
@@ -108,19 +91,19 @@ def get_x_dot():
 
 def get_delta_x(goal_ori, p_d, two_dim = False):
     delta_pos = p_d - robot.endpoint_pose()['position']
-    delta_ori = quatdiff_in_euler(np.asarray(robot.endpoint_pose()['orientation']), goal_ori)
-    #delta_ori = quatdiff_in_euler(np.asarray(robot.endpoint_pose()['orientation']), quaternion.quaternion(x_d[3],x_d[4],x_d[5],x_d[6]))
+    delta_ori = quatdiff_in_euler(np.asarray(robot.endpoint_pose()['orientation']), goal_ori)    
     if two_dim == True:
         return np.array([np.append(delta_pos,delta_ori)]).reshape([6,1])
 
     else:
         return np.append(delta_pos,delta_ori)
 
-def get_x_dot_delta(x_d_dot):
-    return (x_d_dot - get_x_dot()).reshape([6,1])
+def get_x_dot_delta(x_d_dot, two_dim = True):
+    if two_dim == True:
+        return (x_d_dot - get_x_dot()).reshape([6,1])
+    else:
+        return x_d_dot - get_x_dot()
 
-def get_v():
-    return np.append(robot.endpoint_velocity()['linear'],robot.endpoint_velocity()['angular'])
 
 def get_x_ddot_delta(x_d_ddot,v_history,i,T):
     a = get_derivative_of_vector(v_history,i,T)
@@ -166,26 +149,26 @@ def quatdiff_in_euler(quat_curr, quat_des):
     return -des_mat.dot(vec)
 
 def get_F_d(max_num_it,T): #current
-    a = np.zeros(max_num_it)
-    v = np.zeros(max_num_it)
-    s = np.zeros(max_num_it)
-    a[0:100] = 0.0005/T**2
-    a[100:200] = - 0.0005/T**2
+    a = np.zeros((6,max_num_it))
+    v = np.zeros((6,max_num_it))
+    s = np.zeros((6,max_num_it))
+    a[2,0:100] = 0.0005/T**2
+    a[2,100:200] = - 0.0005/T**2
     if max_num_it > 1100:
-        a[500:550] = 0.0002/T**2
+        a[2,500:550] = 0.0002/T**2
     if max_num_it >4001:
-        a[1500:1550]=-0.0002/T**2
+        a[2,1500:1550]=-0.0002/T**2
         it = 2000
         while it <= 4000:
-            a[it]= (-9*(np.pi**2)*(T/4)**2*np.sin(it*T/4*2*np.pi+np.pi/2))/T**2
+            a[2,it]= (-9*(np.pi**2)*(T/4)**2*np.sin(it*T/4*2*np.pi+np.pi/2))/T**2
             it+=1
 
-        a[4001]=0.0001/T**2
+        a[2,4001]=0.0001/T**2
 
     for i in range(max_num_it):
         if i>0:
-            v[i]=v[i-1]+a[i-1]*T
-            s[i]=s[i-1]+v[i-1]*T
+            v[2,i]=v[2,i-1]+a[2,i-1]*T
+            s[2,i]=s[2,i-1]+v[2,i-1]*T
 
     return s
 
@@ -244,8 +227,7 @@ if __name__ == "__main__":
     #lambda_d = 10
     
 
-    lam = np.array([M_tilde_0,B_tilde_0,K_tilde_0])
-
+    lam = np.zeros(18)
     #for plotting
     p_history = np.zeros((3,max_num_it))
     v_history = np.zeros((6,max_num_it))
@@ -263,10 +245,10 @@ if __name__ == "__main__":
         p_history[:,i] = get_p()
         delta_x_history[:,i] = get_delta_x(goal_ori,p_d[:,i])
         F_ext_history[:,i] = get_F_ext()
-        v_history[:,i] = get_v() #positioning is important
+        v_history[:,i] = get_x_dot() #positioning is important
         # adapt M,B and K
-        xi = get_xi(goal_ori, p_d[:,i], x_d_dot[:,i], x_d_ddot[:,i], v_history[:,i], i, T)        
-        lam += get_lambda_dot(gamma,xi,K_v,P,F_d[:,i])
+        xi = get_xi(goal_ori, p_d[:,i], x_d_dot[:,i], x_d_ddot[:,i], v_history, i, T)        
+        lam = lam.reshape([18,1]) + get_lambda_dot(gamma,xi,K_v,P,F_d[:,i]).reshape([18,1]) 
         M_hat,B_hat,K_hat = update_MBK_hat(lam,M,B,K)
         perform_torque(M_hat, B_hat, K_hat, x_d_ddot[:,i], x_d_dot[:,i], p_d[:,i], goal_ori)
         rate.sleep()
