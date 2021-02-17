@@ -28,14 +28,14 @@ B = K*0.633
 M = np.identity(6)
 
 #
-K_v = np.identity(6)
+K_v = 0.5*np.identity(6)
 
 P = np.identity(6)
 gamma = np.identity(18)
 
 
 
-max_num_it = 100
+max_num_it = 500
 
 def get_derivative_of_vector(history,iteration,T):
     size = history.shape[0]
@@ -76,18 +76,17 @@ def get_F_ext(two_dim = False):
     else:
         return np.array([0,0,robot.endpoint_effort()['force'][2],0,0,0])
 
-def get_p(two_dim=False):#TO DO
-    #pos = robot.endpoint_pose()['position']
-    #ori = np.asarray([robot.endpoint_pose()['orientation'].x,robot.endpoint_pose()['orientation'].y,robot.endpoint_pose()['orientation'].z,robot.endpoint_pose()['orientation'].w])
-    #ori = np.asarray([robot.endpoint_pose()['orientation']])
-    #x = np.array(np.append(pos,ori))
+def get_p(two_dim=False):
     if two_dim == True:
         return robot.endpoint_pose()['position'].reshape([3,1])
     else:
         return robot.endpoint_pose()['position']
 
 def get_x_dot():
-    return np.append(robot.endpoint_velocity()['linear'],robot.endpoint_velocity()['angular'])
+    a = np.append(robot.endpoint_velocity()['linear'],robot.endpoint_velocity()['angular'])
+    b = np.zeros(6)
+    return b
+    #return np.append(robot.endpoint_velocity()['linear'],robot.endpoint_velocity()['angular'])
 
 def get_delta_x(goal_ori, p_d, two_dim = False):
     delta_pos = p_d - robot.endpoint_pose()['position']
@@ -114,6 +113,9 @@ def get_desired_trajectory(iterations,T):
     v = np.zeros((6,iterations))
     p = np.zeros((3,iterations))
     p[:,0] = get_p()
+    if iterations > 300:
+        a[2,0:5]=-0.00002/T**2
+        a[2,295:300]=0.00002/T**2
     if iterations > 6500:
         a[0,4500:4510]=0.00001/T**2
         a[0,6490:6500]=-0.00001/T**2
@@ -152,6 +154,8 @@ def get_F_d(max_num_it,T): #current
     a = np.zeros((6,max_num_it))
     v = np.zeros((6,max_num_it))
     s = np.zeros((6,max_num_it))
+    s[2,0]=15
+    """
     a[2,0:100] = 0.0005/T**2
     a[2,100:200] = - 0.0005/T**2
     if max_num_it > 1100:
@@ -164,7 +168,7 @@ def get_F_d(max_num_it,T): #current
             it+=1
 
         a[2,4001]=0.0001/T**2
-
+    """
     for i in range(max_num_it):
         if i>0:
             v[2,i]=v[2,i-1]+a[2,i-1]*T
@@ -172,20 +176,20 @@ def get_F_d(max_num_it,T): #current
 
     return s
 
-def plot_result(p,p_d, delta_x, F_ext,T):
+def plot_result(p,p_d, delta_x, F_ext,F_d, z_stiffness, T):
 
     time_array = np.arange(len(p[0]))*T
     
 
-    plt.subplot(131)
+    plt.subplot(221)
     plt.title("External force")
     plt.plot(time_array, F_ext[2], label="force z [N]")
-    #plt.plot(time_array, f_d[:], label="desired force z [N]", color='b',linestyle='dashed')
+    plt.plot(time_array, F_d[2], label="desired force z [N]", color='b',linestyle='dashed')
     plt.xlabel("Real time [s]")
     plt.legend()
 
 
-    plt.subplot(132)
+    plt.subplot(222)
     plt.title("Position")
     plt.plot(time_array, p[0,:], label = "true x [m]")
     plt.plot(time_array, p[1,:], label = "true y [m]")
@@ -198,11 +202,17 @@ def plot_result(p,p_d, delta_x, F_ext,T):
     plt.legend()
     
     
-    plt.subplot(133)
+    plt.subplot(223)
     plt.title("Orientation error")
     plt.plot(time_array, delta_x[3], label = "error  Ori_x [degrees]")
     plt.plot(time_array, delta_x[4], label = "error  Ori_y [degrees]")
     plt.plot(time_array, delta_x[5], label = "error  Ori_z [degrees]")
+    plt.xlabel("Real time [s]")
+    plt.legend()
+
+    plt.subplot(224)
+    plt.title("Stiffness along z")
+    plt.plot(time_array, z_stiffness, label = "stiffness in z")
     plt.xlabel("Real time [s]")
     plt.legend()
 
@@ -236,6 +246,9 @@ if __name__ == "__main__":
 
     F_ext_history = np.zeros((6,max_num_it))
 
+
+    z_stiffness_history = np.zeros(max_num_it)
+
     x_d_ddot, x_d_dot, p_d = get_desired_trajectory(max_num_it,T)
     goal_ori = np.asarray(robot.endpoint_pose()['orientation'])
     F_d = get_F_d(max_num_it,T)
@@ -246,6 +259,7 @@ if __name__ == "__main__":
         delta_x_history[:,i] = get_delta_x(goal_ori,p_d[:,i])
         F_ext_history[:,i] = get_F_ext()
         v_history[:,i] = get_x_dot() #positioning is important
+
         # adapt M,B and K
         xi = get_xi(goal_ori, p_d[:,i], x_d_dot[:,i], x_d_ddot[:,i], v_history, i, T)        
         lam = lam.reshape([18,1]) + get_lambda_dot(gamma,xi,K_v,P,F_d[:,i]).reshape([18,1]) 
@@ -255,8 +269,10 @@ if __name__ == "__main__":
 
 
         # plotting and printing
+        z_stiffness_history[i]=K_hat[2][2]
         if i%100 == 0:
             print(i,'/',max_num_it,' = ',T*i,' [s]   ) Force in z: ',F_ext_history[2,i])
+            print(K_hat[2][2])
             print('')
 
 
@@ -266,5 +282,5 @@ if __name__ == "__main__":
         #trajectory[:,i] = np.array([robot.endpoint_pose()['position'][0],robot.endpoint_pose()['position'][1],robot.endpoint_pose()['position'][2]])#
     
     #np.save('trajectory.npy',trajectory)#
-    plot_result(p_history, p_d, delta_x_history, F_ext_history, T)
+    plot_result(p_history, p_d, delta_x_history, F_ext_history, F_d, z_stiffness_history, T)
 
