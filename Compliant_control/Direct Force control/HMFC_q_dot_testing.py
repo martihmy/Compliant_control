@@ -102,19 +102,19 @@ def get_lambda_dot(S_f_inv,h_e_hist,i,T):
     return np.dot(S_f_inv,h_e_dot)
 
 
-def get_r_d(max_num_it):
+def get_r_d(max_num_it,T):
     a = np.zeros((5,max_num_it))
     v = np.zeros((5,max_num_it))
     s = np.zeros((5,max_num_it))
     
     s[:,0]= get_r()
     if max_num_it>6500:
-        a[0,4500:4510]=0.00001
-        a[0,6490:6500]=-0.00001
+        a[0,4500:4510]=0.00001/T**2
+        a[0,6490:6500]=-0.00001/T**2
     for i in range(max_num_it):
         if i>0:
-            v[:,i]=v[:,i-1]+a[:,i-1]
-            s[:,i]=s[:,i-1]+v[:,i-1]
+            v[:,i]=v[:,i-1]+a[:,i-1]*T
+            s[:,i]=s[:,i-1]+v[:,i-1]*T
     return a,v,s
 
 
@@ -338,7 +338,7 @@ if __name__ == "__main__":
     h_e_hist = np.zeros((6,max_num_it))
     v_hist = np.zeros((3,max_num_it))
 
-    r_d_ddot, r_d_dot, r_d = get_r_d(max_num_it)
+    r_d_ddot, r_d_dot, r_d = get_r_d(max_num_it,T)
     f_d_ddot,f_d_dot, f_d = get_F_d(max_num_it,T)
     wrench_offsets = np.load('/home/martin/trajectory_wrenches.npy') ###
     #z_offsets = wrench_offsets[2][:] ###
