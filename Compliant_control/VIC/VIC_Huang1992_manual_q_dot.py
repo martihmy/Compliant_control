@@ -34,8 +34,8 @@ K = np.array([[Kp, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, Ko]])
 
 
-Bp = Kp/4
-Bo = 1500
+Bp = Kp/7
+Bo = 500
 B = np.array([[Bp, 0, 0, 0, 0, 0],
                 [0, Bp, 0, 0, 0, 0],
                 [0, 0, Bp, 0, 0, 0],
@@ -62,7 +62,7 @@ gamma[8,8] = gamma_B
 gamma[14,14] = gamma_K
 
 
-max_num_it = 1000
+max_num_it = 50
 
 def get_derivative_of_vector(history,iteration,T):
     size = history.shape[0]
