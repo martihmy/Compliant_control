@@ -212,13 +212,7 @@ if __name__ == "__main__":
 
     # ----------- The control loop  -----------                       
     for i in range(max_num_it):
-
-        # Collecting data for plotting
-        F_ext_history[:,i]=np.append(robot.endpoint_effort()['force'],robot.endpoint_effort()['torque'])
-        x_c_history[:,i] = x_d[:,i] + E
-        x_history[:,i] = robot.endpoint_pose()['position']
-        orientation_error_history[:,i] = quatdiff_in_euler_degrees(robot.endpoint_pose()['orientation'], goal_ori)
-        #
+        
         
         # Update the compliant position every X'th iteration 
         if i%2==0: 
@@ -237,6 +231,11 @@ if __name__ == "__main__":
         if i%100==0: 
             print(i,', pos:',robot.endpoint_pose()['position'],' F: ', robot.endpoint_effort()['force'][2])#' force measured: ',robot.endpoint_effort()['force'])
 
+        # Collecting data for plotting
+        F_ext_history[:,i]=np.append(robot.endpoint_effort()['force'],robot.endpoint_effort()['torque'])
+        x_c_history[:,i] = x_d[:,i] + E
+        x_history[:,i] = robot.endpoint_pose()['position']
+        orientation_error_history[:,i] = quatdiff_in_euler_degrees(robot.endpoint_pose()['orientation'], goal_ori)
 
     # Plotting the full result of the run         
     plot_result(F_ext_history,x_c_history,x_history,F_d,x_d,orientation_error_history,T)
