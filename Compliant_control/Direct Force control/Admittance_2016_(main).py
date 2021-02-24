@@ -1,14 +1,3 @@
-"""
-
-This is an ADMITTANCE CONTROLLER. 
-
-
-It is computing a compliant position (x_c = x_d + E) based on the force error (F_d - F_ext) and a desired inertia, damping and stiffness (M,B,K).
-The compliant position x_c is fed to a position controller.
-
-
-"""
-
 #! /usr/bin/env python
 import copy
 from copy import deepcopy
@@ -24,6 +13,19 @@ import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation
 
 np.set_printoptions(precision=2)
+
+
+"""
+
+This is an ADMITTANCE CONTROLLER. 
+
+
+It is computing a compliant position (x_c = x_d + E) based on the force error (F_d - F_ext) and a desired inertia, damping and stiffness (M,B,K).
+The compliant position x_c is fed to a position controller.
+
+
+"""
+
 
 # --------- Parameters -----------------------------
 
