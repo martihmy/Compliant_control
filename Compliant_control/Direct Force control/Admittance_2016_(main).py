@@ -186,7 +186,9 @@ if __name__ == "__main__":
     publish_rate = 250
     rate = rospy.Rate(publish_rate)
     T = 0.001*(1000/publish_rate) # The control loop's time step
+    robot.move_to_neutral() # Move the manipulator to its neutral position (starting position)
     max_num_it=500 # Duration of the run
+    # Full run = 7500 iterations 
 
      
     # List used to contain data needed for calculation of the torque output 
@@ -201,7 +203,7 @@ if __name__ == "__main__":
     orientation_error_history = np.zeros((3,max_num_it))
     #desired_ori_degrees = get_ori_degrees()
 
-    robot.move_to_neutral() # Move the manipulator to its neutral position (starting position)
+    
     
     # Specify the desired behaviour of the robot
     
