@@ -17,7 +17,7 @@ np.set_printoptions(precision=2)
 
 """
 
-This is an ADMITTANCE CONTROLLER. 
+This is an ADMITTANCE CONTROLLER based on [Lahr2016: Understanding the implementation of Impedance Control in Industrial Robots]
 
 
 It is computing a compliant position (x_c = x_d + E) based on the force error (F_d - F_ext) and a desired inertia, damping and stiffness (M,B,K).

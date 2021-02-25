@@ -16,7 +16,7 @@ np.set_printoptions(precision=2)
 
 
 
-This is a HYBRID MOTION/FORCE CONTROLLER
+This is a HYBRID MOTION/FORCE CONTROLLER based on chapter 9.4.1 in the Handbook of Robotics 
 
 It is doing force control along the z-axis, and motion control of the orientation and x and y positions.
 
