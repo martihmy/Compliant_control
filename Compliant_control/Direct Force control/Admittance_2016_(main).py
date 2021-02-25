@@ -24,6 +24,12 @@ It is computing a compliant position (x_c = x_d + E) based on the force error (F
 The compliant position x_c is fed to a position controller.
 
 
+
+About the code/controller:
+
+1] The manipulator is doing quite jerky movements due to the noisiness of force measurements it is acting on 
+
+
 """
 
 
@@ -206,7 +212,6 @@ if __name__ == "__main__":
     
     
     # Specify the desired behaviour of the robot
-    
     goal_ori = robot.endpoint_pose()['orientation'] # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
     x_d = generate_desired_trajectory(max_num_it,T)
     F_d = generate_F_d(max_num_it,T)
