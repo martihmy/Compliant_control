@@ -1,0 +1,416 @@
+#! /usr/bin/env python
+import copy
+from copy import deepcopy
+import rospy
+import threading
+import quaternion
+import numpy as np
+from geometry_msgs.msg import Point
+from visualization_msgs.msg import *
+from franka_interface import ArmInterface
+from panda_robot import PandaArm
+import matplotlib.pyplot as plt
+from scipy.spatial.transform import Rotation
+np.set_printoptions(precision=2)
+"""
+
+This is a FORCE-BASED VARIABLE IMPEDANCE CONTROLLER based on [Huang1992: Compliant Motion Control of Robots by Using Variable Impedance]
+
+To achieve force tracking, the apparent stiffness (K) and damping (B) is dynamically adjusted through functions dependent on the error in position, velocity and force
+
+
+
+
+About the code/controller:
+
+1] Only stiffness and damping in the 'z'-direction is adaptive, the rest are static
+
+2] Due to the faulted joint velocities (read from rostopics), the more noisy, 
+    numerically derived derivatives of the joint position are prefered to be 
+        used in the controller { get_x_dot(..., numerically = True) }
+
+"""
+# --------- Constants -----------------------------
+
+
+# Stiffness
+Kp = 30
+Kpz = 30 #initial value (adaptive)
+Ko = 600
+K = np.array([[Kp, 0, 0, 0, 0, 0],
+                [0, Kp, 0, 0, 0, 0],
+                [0, 0, Kpz, 0, 0, 0],
+                [0, 0, 0, Ko, 0, 0],
+                [0, 0, 0, 0, Ko, 0],
+                [0, 0, 0, 0, 0, Ko]])
+
+# Damping 
+Bp = Kp/7
+Bpz = Bp # #initial value (adaptive)
+Bo = 50
+B = np.array([[Bp, 0, 0, 0, 0, 0],
+                [0, Bp, 0, 0, 0, 0],
+                [0, 0, Bpz, 0, 0, 0],
+                [0, 0, 0, Bo, 0, 0],
+                [0, 0, 0, 0, Bo, 0],
+                [0, 0, 0, 0, 0, Bo]])
+
+# Apparent inertia
+Mp = 10
+Mo = 10
+M_diag = np.array([Mp,Mp,Mp,Mo,Mo,Mo])
+M = np.diagflat(M_diag)
+
+# Constant matrices appearing in equation (50) of [Huang1992]
+K_v = np.identity(6)
+P = np.identity(6)
+gamma = np.identity(18)
+
+#gamma_M = 12 
+gamma_B = 2 # The damping's rate of adaptivity (high value = slow changes)
+gamma_K = 1 # The stiffness' rate of adaptivity (high value = slow changes)
+#gamma[2,2] = gamma_M
+gamma[8,8] = gamma_B
+gamma[14,14] = gamma_K
+
+
+max_num_it = 7500 # Duration of the run 
+# Full run = 7500 iterations
+
+
+# Generate a desired trajectory for the manipulator to follow
+def generate_desired_trajectory(iterations,T):
+    a = np.zeros((6,iterations))
+    v = np.zeros((6,iterations))
+    p = np.zeros((3,iterations))
+    p[:,0] = get_p()
+    
+    if iterations > 300:
+        a[2,0:100]=-0.00001/T**2
+        a[2,250:350]=0.00001/T**2
+        
+    if iterations > 6500:
+        a[0,4500:4510]=0.00001/T**2
+        a[0,6490:6500]=-0.00001/T**2
+    for i in range(max_num_it):
+        if i>0:
+            v[:,i]=v[:,i-1]+a[:,i-1]*T
+            p[:,i]=p[:,i-1]+v[:3,i-1]*T
+    return a,v,p
+
+
+# Generate a desired force trajectory 
+def generate_F_d(max_num_it,T):
+    a = np.zeros((6,max_num_it))
+    v = np.zeros((6,max_num_it))
+    s = np.zeros((6,max_num_it))
+    
+    a[2,0:100] = 0.0005/T**2
+    a[2,100:200] = - 0.0005/T**2
+    if max_num_it > 1100:
+        a[2,500:550] = 0.0002/T**2
+    if max_num_it >4001:
+        a[2,1500:1550]=-0.0002/T**2
+        it = 2000
+        while it <= 4000:
+            a[2,it]= (-9*(np.pi**2)*(T/4)**2*np.sin(it*T/4*2*np.pi+np.pi/2))/T**2
+            it+=1
+        a[2,4001]=0.0001/T**2
+    
+    for i in range(max_num_it):
+        if i>0:
+            v[2,i]=v[2,i-1]+a[2,i-1]*T
+            s[2,i]=s[2,i-1]+v[2,i-1]*T
+
+    return s
+
+# ------------ Helper functions --------------------------------
+
+
+# Calculate the numerical derivative of a each row in a vector
+def get_derivative_of_vector(history,iteration,T):
+    size = history.shape[0]
+    if iteration > 0:
+        return np.subtract(history[:,iteration],history[:,iteration-1])/T
+    else:
+        return np.zeros(size)
+
+
+# Saturation-function
+def ensure_limits(lower,upper,matrix):   
+    for i in range(6):
+        if matrix[i,i] > upper:
+            matrix[i,i] = upper
+        elif matrix[i,i] < lower:
+            matrix[i,i] = lower
+
+
+# Return the cartesian (task-space) inertia of the manipulator [alternatively the inverse of it]
+def get_W(inv = False):
+    W = np.linalg.multi_dot([robot.jacobian(),np.linalg.inv(robot.joint_inertia_matrix()),robot.jacobian().T])
+    if inv == True:
+        return np.linalg.inv(W)
+    else:
+        return W
+
+
+
+# Return the external forces (everything except for z-force is set to 0 due to offsets)
+def get_F_ext(two_dim = False):
+    if two_dim == True:
+        return np.array([0,0,robot.endpoint_effort()['force'][2],0,0,0]).reshape([6,1])
+    else:
+        return np.array([0,0,robot.endpoint_effort()['force'][2],0,0,0])
+
+
+# Return the position and (relative) orientation 
+def get_x(goal_ori):
+    pos_x = robot.endpoint_pose()['position']
+    rel_ori = quatdiff_in_euler_radians(goal_ori, np.asarray(robot.endpoint_pose()['orientation']))
+    return np.append(pos_x,rel_ori)
+
+
+# Return the linear and angular velocities
+# Numerically = True -> return the derivarive of the state-vector
+# Numerically = False -> read values from rostopic (faulty in sim when interacting with the environment)
+def get_x_dot(x_hist,i,T, numerically=False):
+    if numerically == True:
+        return get_derivative_of_vector(x_hist,i,T)
+    else:
+        return np.append(robot.endpoint_velocity()['linear'],robot.endpoint_velocity()['angular'])
+
+
+
+# Return the error in position and orientation
+def get_delta_x(goal_ori, p_d, two_dim = False):
+    delta_pos = p_d - robot.endpoint_pose()['position']
+    delta_ori = quatdiff_in_euler_radians(np.asarray(robot.endpoint_pose()['orientation']), goal_ori)  
+    if two_dim == True:
+        return np.array([np.append(delta_pos,delta_ori)]).reshape([6,1])
+
+    else:
+        return np.append(delta_pos,delta_ori)
+
+
+# Return the error in linear and angular velocities
+def get_x_dot_delta(x_d_dot,x_dot, two_dim = True):
+    if two_dim == True:
+        return (x_d_dot - x_dot).reshape([6,1])
+    else:
+        return x_d_dot - x_dot
+
+
+# Return the error in linear and angular acceleration
+def get_x_ddot_delta(x_d_ddot,v_history,i,T):
+    a = get_derivative_of_vector(v_history,i,T)
+    return x_d_ddot-a
+
+
+# Return the cartesian (task-space) position
+def get_p(two_dim=False):
+    if two_dim == True:
+        return robot.endpoint_pose()['position'].reshape([3,1])
+    else:
+        return robot.endpoint_pose()['position']
+
+
+# Compute difference between quaternions and return Euler angle in radians as difference
+def quatdiff_in_euler_radians(quat_curr, quat_des):
+    curr_mat = quaternion.as_rotation_matrix(quat_curr)
+    des_mat = quaternion.as_rotation_matrix(quat_des)
+    rel_mat = des_mat.T.dot(curr_mat)
+    rel_quat = quaternion.from_rotation_matrix(rel_mat)
+    vec = quaternion.as_float_array(rel_quat)[1:]
+    if rel_quat.w < 0.0:
+        vec = -vec
+    return -des_mat.dot(vec)
+
+# -------------- Main functions --------------------
+
+# Get xi as it is described in equation (44) in [Huang1992]
+def get_xi(goal_ori, p_d, x_dot, x_d_dot, x_d_ddot, v_history, i, T):
+    E = -get_delta_x(goal_ori, p_d)
+    E_dot = -get_x_dot_delta(x_d_dot,x_dot, two_dim = False)
+    E_ddot = -get_x_ddot_delta(x_d_ddot,v_history,i,T)
+    E_diag = np.diagflat(E)
+    E_dot_diag = np.diagflat(E_dot)
+    E_ddot_diag = np.diagflat(E_ddot)
+    return np.block([E_ddot_diag,E_dot_diag,E_diag])
+
+
+# Calculate lambda_dot as in equation (50) in [Huang1992] 
+def get_lambda_dot(gamma,xi,K_v,P,F_d):
+    return np.linalg.multi_dot([-np.linalg.inv(gamma),xi.T,np.linalg.inv(K_v),P,get_F_ext(two_dim=True)-F_d.reshape([6,1])])
+
+
+# Return the updated (adapted) Inertia, Damping and Stiffness matrices.
+def update_MBK_hat(lam,M,B,K):
+    M_hat = M # + np.diagflat(lam[0:6])
+    B_hat = B + np.diagflat(lam[6:12])
+    K_hat = K + np.diagflat(lam[12:18])
+    #ensure_limits(1,5000,M_hat)
+    ensure_limits(1,5000,B_hat)
+    ensure_limits(1,5000,K_hat)
+    return M_hat, B_hat, K_hat
+
+
+# Calculate and perform the torque as in equation (10) in [Huang1992]
+def perform_torque(M, B, K, x_d_ddot, x_d_dot,x_dot, p_d, goal_ori):
+    a = np.linalg.multi_dot([robot.jacobian().T,get_W(inv=True),np.linalg.inv(M)])
+    b = np.array([np.dot(M,x_d_ddot)]).reshape([6,1]) + np.array([np.dot(B,get_x_dot_delta(x_d_dot,x_dot))]).reshape([6,1]) + np.array([np.dot(K,get_delta_x(goal_ori,p_d,two_dim = True))]).reshape([6,1])
+    c = robot.coriolis_comp().reshape([7,1])
+    d = (np.identity(6)-np.dot(get_W(inv=True),np.linalg.inv(M))).reshape([6,6])
+    total_torque = np.array([np.dot(a,b)]).reshape([7,1]) + c + np.array([np.linalg.multi_dot([robot.jacobian().T,d,get_F_ext()])]).reshape([7,1])
+    robot.set_joint_torques(dict(list(zip(robot.joint_names(),total_torque))))
+
+
+
+
+# -------------- Plotting ------------------------
+
+def plot_result(v_num, v,p,p_d, delta_x, F_ext,F_d, z_dynamics,M,B,K, T):
+
+    time_array = np.arange(len(p[0]))*T
+    
+
+    plt.subplot(231)
+    plt.title("External force")
+    plt.plot(time_array, F_ext[2], label="force z [N]")
+    plt.plot(time_array, F_d[2], label="desired force z [N]", color='b',linestyle='dashed')
+    plt.xlabel("Real time [s]")
+    plt.legend()
+
+
+    plt.subplot(232)
+    plt.title("Position")
+    plt.plot(time_array, p[0,:], label = "true x [m]")
+    plt.plot(time_array, p[1,:], label = "true y [m]")
+    plt.plot(time_array, p[2,:], label = "true z [m]")
+
+    plt.plot(time_array, p_d[0,:], label = "desired x [m]", color='b',linestyle='dashed')
+    plt.plot(time_array, p_d[1,:], label = "desired y [m]", color='C1',linestyle='dashed')
+    plt.plot(time_array, p_d[2,:], label = "desired z [m]", color='g',linestyle='dashed')
+    plt.xlabel("Real time [s]")
+    plt.legend()
+    
+    
+    plt.subplot(233)
+    plt.title("Orientation error in Euler")
+    plt.plot(time_array, delta_x[3]*(180/np.pi), label = "error  Ori_x [degrees]")
+    plt.plot(time_array, delta_x[4]*(180/np.pi), label = "error  Ori_y [degrees]")
+    plt.plot(time_array, delta_x[5]*(180/np.pi), label = "error  Ori_z [degrees]")
+    plt.xlabel("Real time [s]")
+    plt.legend()
+
+    plt.subplot(234)
+    plt.title("Adaptive dynamics along the z-axis")
+    plt.plot(time_array, z_dynamics[0], label = "inertia (M_z)")
+    plt.plot(time_array, z_dynamics[1], label = "damping (B_z)")
+    plt.plot(time_array, z_dynamics[2], label = "stiffness (K_z)")
+    plt.axhline(y=M[2][2], label = "initial inertia (M_z)", color='b',linestyle='dashed')
+    plt.axhline(y=B[2][2], label = "initial damping (B_z)", color='C1',linestyle='dashed')
+    plt.axhline(y=K[2][2], label = "initial stiffness (K_z)", color='g',linestyle='dashed')
+    plt.xlabel("Real time [s]")
+    plt.legend()
+
+    plt.subplot(235)
+    plt.title("velocity read from rostopic")
+    plt.plot(time_array, v[0], label = "vel x")
+    plt.plot(time_array, v[1], label = "vel y")
+    plt.plot(time_array, v[2], label = "vel z")
+    plt.plot(time_array, v[3], label = "ang x")
+    plt.plot(time_array, v[4], label = "ang y")
+    plt.plot(time_array, v[5], label = "ang z")
+    plt.xlabel("Real time [s]")
+    plt.legend()
+
+    plt.subplot(236)
+    plt.title("numerically calculated velocity")
+    plt.plot(time_array, v_num[0], label = "vel x")
+    plt.plot(time_array, v_num[1], label = "vel y")
+    plt.plot(time_array, v_num[2], label = "vel z")
+    plt.plot(time_array, v_num[3], label = "ang x")
+    plt.plot(time_array, v_num[4], label = "ang y")
+    plt.plot(time_array, v_num[5], label = "ang z")
+    plt.xlabel("Real time [s]")
+    plt.legend()
+
+
+    plt.show()
+
+
+
+
+
+if __name__ == "__main__":
+
+    # ---------- Initialization -------------------
+    rospy.init_node("impedance_control")
+    robot = PandaArm()
+    publish_rate = 250
+    rate = rospy.Rate(publish_rate)
+    T = 0.001*(1000/publish_rate)
+    robot.move_to_neutral() 
+
+    
+    # List used to contain data needed for calculation of the torque output 
+    lam = np.zeros(18)
+    v_history = np.zeros((6,max_num_it))
+
+    # Lists providing data for plotting
+    p_history = np.zeros((3,max_num_it))
+    v_history_num = np.zeros((6,max_num_it))
+    x_history = np.zeros((6,max_num_it))
+    delta_x_history = np.zeros((6,max_num_it))
+    F_ext_history = np.zeros((6,max_num_it))
+    z_dynamics_history = np.zeros((3,max_num_it))
+
+
+    # Specify the desired behaviour of the robot
+    x_d_ddot, x_d_dot, p_d = generate_desired_trajectory(max_num_it,T)
+    goal_ori = np.asarray(robot.endpoint_pose()['orientation']) # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
+    F_d = generate_F_d(max_num_it,T)
+
+
+    # ----------- The control loop  -----------   
+    for i in range(max_num_it):
+        # update state-lists
+        p_history[:,i] = get_p()
+        x_history[:,i] = get_x(goal_ori)
+        delta_x_history[:,i] = get_delta_x(goal_ori,p_d[:,i])
+        F_ext_history[:,i] = get_F_ext()
+        x_dot = get_x_dot(x_history,i,T, numerically=True) #chose 'numerically' either 'True' or 'False'
+        v_history_num[:,i] = get_x_dot(x_history,i,T, numerically=True) # only for plotting 
+        v_history[:,i] = get_x_dot(x_history,i,T) # for calculating error in acceleration 
+
+        # adapt M,B and K
+        xi = get_xi(goal_ori, p_d[:,i],x_dot, x_d_dot[:,i], x_d_ddot[:,i], v_history, i, T)        
+        lam = lam.reshape([18,1]) + get_lambda_dot(gamma,xi,K_v,P,F_d[:,i]).reshape([18,1]) 
+        M_hat,B_hat,K_hat = update_MBK_hat(lam,M,B,K)
+
+        # Apply the resulting torque to the robot 
+        perform_torque(M_hat, B_hat, K_hat, x_d_ddot[:,i], x_d_dot[:,i],x_dot, p_d[:,i], goal_ori)
+        rate.sleep()
+
+
+        # plotting and printing
+        z_dynamics_history[0][i]=M_hat[2][2]
+        z_dynamics_history[1][i]=B_hat[2][2]
+        z_dynamics_history[2][i]=K_hat[2][2]
+
+
+        # Live printing to screen when the controller is running
+        if i%100 == 0:
+            print(i,'/',max_num_it,' = ',T*i,' [s]   ) Force in z: ',F_ext_history[2,i])
+            print(K_hat[2][2])
+            print('')
+
+
+        
+
+
+        #trajectory[:,i] = np.array([robot.endpoint_pose()['position'][0],robot.endpoint_pose()['position'][1],robot.endpoint_pose()['position'][2]])#
+    
+    #np.save('trajectory.npy',trajectory)#
+    plot_result(v_history_num,v_history, p_history, p_d, delta_x_history, F_ext_history, F_d, z_dynamics_history,M,B,K, T)
+
