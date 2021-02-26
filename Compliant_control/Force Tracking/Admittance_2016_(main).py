@@ -193,7 +193,7 @@ if __name__ == "__main__":
     rate = rospy.Rate(publish_rate)
     T = 0.001*(1000/publish_rate) # The control loop's time step
     robot.move_to_neutral() # Move the manipulator to its neutral position (starting position)
-    max_num_it=500 # Duration of the run
+    max_num_it=7500 # Duration of the run
     # Full run = 7500 iterations 
 
      

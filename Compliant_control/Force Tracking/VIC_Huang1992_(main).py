@@ -29,6 +29,8 @@ About the code/controller:
     numerically derived derivatives of the joint position are prefered to be 
         used in the controller { get_x_dot(..., numerically = True) }
 
+3] You can now choose between perform_torque_Huang1992() and perform_torque_DeSchutter()
+
 """
 # --------- Constants -----------------------------
 
@@ -255,7 +257,7 @@ def update_MBK_hat(lam,M,B,K):
 
 
 # Calculate and perform the torque as in equation (10) in [Huang1992]
-def perform_torque(M, B, K, x_d_ddot, x_d_dot,x_dot, p_d, goal_ori):
+def perform_torque_Huang1992(M, B, K, x_d_ddot, x_d_dot,x_dot, p_d, goal_ori):
     a = np.linalg.multi_dot([robot.jacobian().T,get_W(inv=True),np.linalg.inv(M)])
     b = np.array([np.dot(M,x_d_ddot)]).reshape([6,1]) + np.array([np.dot(B,get_x_dot_delta(x_d_dot,x_dot))]).reshape([6,1]) + np.array([np.dot(K,get_delta_x(goal_ori,p_d,two_dim = True))]).reshape([6,1])
     c = robot.coriolis_comp().reshape([7,1])
@@ -264,8 +266,71 @@ def perform_torque(M, B, K, x_d_ddot, x_d_dot,x_dot, p_d, goal_ori):
     robot.set_joint_torques(dict(list(zip(robot.joint_names(),total_torque))))
 
 
+"""
+    TESTING AREA (Functions needed to run an adaptive version of DeSchutter's impedance controller)
+    [with geometrically consistent stiffness]
+"""
+def skew(vector):
+    return np.array([[0, -vector[2], vector[1]], 
+                     [vector[2], 0, -vector[0]], 
+                     [-vector[1], vector[0], 0]])
 
+def from_three_to_six_dim(matrix):
+    return np.block([[matrix,np.zeros((3,3))],[np.zeros((3,3)),matrix]])
 
+def get_K_Pt_dot(R_d,K_pt,R_e):
+    return np.array([0.5*np.linalg.multi_dot([R_d,K_pt,R_d.T])+0.5*np.linalg.multi_dot([R_e,K_pt,R_e.T])])
+
+def get_K_Pt_ddot(p_d,R_d,K_pt):
+    return np.array([0.5*np.linalg.multi_dot([skew(p_d-robot.endpoint_pose()['position']),R_d,K_pt,R_d.T])])
+
+def E_quat(quat_n,quat_e): 
+    return np.dot(quat_n,np.identity(3))-skew(quat_e)
+
+def get_K_Po_dot(quat_n,quat_e,R_e,K_po): 
+    return np.array([2*np.linalg.multi_dot([E_quat(quat_n,quat_e).T,R_e,K_po,R_e.T])])
+
+def get_h_delta(K_pt_dot,K_pt_ddot,p_delta,K_po_dot,quat_e):
+    f_delta_t = np.array([np.dot(K_pt_dot,p_delta)])
+    m_delta_t = np.array([np.dot(K_pt_ddot,p_delta)])
+    null = np.zeros((3,1))
+    m_delta_o = np.array([np.dot(K_po_dot,quat_e)])
+    
+    return np.array([np.append(f_delta_t.T,m_delta_t.T)]).T + np.array([np.append(null.T,m_delta_o.T)]).T
+
+def perform_torque_DeSchutter(M, B, K, x_d_ddot, x_d_dot,x_dot, p_d, Rot_d): # must include Rot_d
+    J = robot.jacobian()
+    Rot_e = robot.endpoint_pose()['orientation_R']
+    Rot_e_bigdim = from_three_to_six_dim(Rot_e)
+    Rot_e_dot = np.dot(skew(robot.endpoint_velocity()['angular']),Rot_e) #not a 100 % sure about this one
+    Rot_e_dot_bigdim = from_three_to_six_dim(Rot_e_dot)
+    
+    
+    quat = quaternion.from_rotation_matrix(np.dot(Rot_e.T,Rot_d)) #orientational displacement represented as a unit quaternion
+    #quat = robot.endpoint_pose()['orientation']
+    quat_e_e = np.array([quat.x,quat.y,quat.z]) # vector part of the unit quaternion in the frame of the end effector
+    quat_e = np.dot(Rot_e.T,quat_e_e) # ... in the base frame
+    quat_n = quat.w
+        
+    p_delta = p_d-robot.endpoint_pose()['position']
+
+    K_Pt_dot = get_K_Pt_dot(Rot_d,K[:3,:3],Rot_e)
+    K_Pt_ddot = get_K_Pt_ddot(p_d,Rot_d,K[:3,:3])
+    K_Po_dot = get_K_Po_dot(quat_n,quat_e,Rot_e,K[3:,3:])
+
+    h_delta_e = np.array(np.dot(Rot_e_bigdim,get_h_delta(K_Pt_dot,K_Pt_ddot,p_delta,K_Po_dot,quat_e))).reshape([6,1])
+    h_e = get_F_ext(two_dim=True)
+    h_e_e = np.array(np.dot(Rot_e_bigdim,h_e))
+
+    a_d_e = np.dot(Rot_e_bigdim,x_d_ddot).reshape([6,1])
+    v_d_e = np.dot(Rot_e_bigdim,x_d_dot).reshape([6,1])
+    alpha_e = a_d_e + np.dot(np.linalg.inv(M),(np.dot(B,v_d_e.reshape([6,1])-np.dot(Rot_e_bigdim,x_dot).reshape([6,1]))+h_delta_e-h_e_e)).reshape([6,1])
+    alpha = np.dot(Rot_e_bigdim.T,alpha_e).reshape([6,1])+np.dot(Rot_e_dot_bigdim.T,np.dot(Rot_e_bigdim,x_dot)).reshape([6,1])
+    torque = np.linalg.multi_dot([J.T,get_W(inv=True),alpha]).reshape((7,1)) + np.array(robot.coriolis_comp().reshape((7,1))) + np.dot(J.T,h_e).reshape((7,1))
+    robot.set_joint_torques(dict(list(zip(robot.joint_names(),torque))))
+"""
+    TESTING AREA
+"""
 # -------------- Plotting ------------------------
 
 def plot_result(v_num, v,p,p_d, delta_x, F_ext,F_d, z_dynamics,M,B,K, T):
@@ -369,6 +434,7 @@ if __name__ == "__main__":
     # Specify the desired behaviour of the robot
     x_d_ddot, x_d_dot, p_d = generate_desired_trajectory(max_num_it,T)
     goal_ori = np.asarray(robot.endpoint_pose()['orientation']) # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
+    Rot_d = robot.endpoint_pose()['orientation_R'] # used by the DeSchutter implementation
     F_d = generate_F_d(max_num_it,T)
 
 
@@ -389,7 +455,8 @@ if __name__ == "__main__":
         M_hat,B_hat,K_hat = update_MBK_hat(lam,M,B,K)
 
         # Apply the resulting torque to the robot 
-        perform_torque(M_hat, B_hat, K_hat, x_d_ddot[:,i], x_d_dot[:,i],x_dot, p_d[:,i], goal_ori)
+        #perform_torque_Huang1992(M_hat, B_hat, K_hat, x_d_ddot[:,i], x_d_dot[:,i],x_dot, p_d[:,i], goal_ori)
+        perform_torque_DeSchutter(M_hat, B_hat, K_hat, x_d_ddot[:,i], x_d_dot[:,i],x_dot, p_d[:,i], Rot_d)
         rate.sleep()
 
 
