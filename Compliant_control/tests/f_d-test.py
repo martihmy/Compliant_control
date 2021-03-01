@@ -53,6 +53,7 @@ def plot_result(f_d,f_d_dot,f_d_ddot, T):
     plt.show()
 
 
+
 def get_F_d_steep(max_num_it,T): #current
     a = np.zeros(max_num_it)
     v = np.zeros(max_num_it)
@@ -169,14 +170,38 @@ def get_F_d_Tadjusted(max_num_it,T): #current
 
     return a,v,s
 
+def generate_F_d_express(max_num_it,T):
+    a = np.zeros((6,max_num_it))
+    v = np.zeros((6,max_num_it))
+    s = np.zeros((6,max_num_it))
+    
+    a[2,0:50] = 0.0010/T**2
+    a[2,100:150] = - 0.0010/T**2
+    if max_num_it > 275:
+        a[2,250:275] = 0.0008/T**2
+    if max_num_it >2001:
+        a[2,750:775]=-0.0008/T**2
+        it = 1000
+        while it <= 2000:
+            a[2,it]= (-9*(np.pi**2)*(T/4)**2*np.sin(2*it*T/4*2*np.pi+np.pi/2))/T**2
+            it+=1
+        a[2,2001]=0.0001/T**2
+    
+    for i in range(max_num_it):
+        if i>0:
+            v[2,i]=v[2,i-1]+a[2,i-1]*T
+            s[2,i]=s[2,i-1]+v[2,i-1]*T
+
+    return a,v,s
+
 if __name__ == "__main__":
-    max_num_it=7500
+    max_num_it=3750
     # TO BE INITIALISED BEFORE LOOP
     T = 0.001*(1000/250) #correct for sim
 
 
-    f_d_ddot,f_d_dot, f_d = get_F_d_Tadjusted_steep(max_num_it,T)
+    f_d_ddot,f_d_dot, f_d = generate_F_d_express(max_num_it,T)
 
 
-    plot_result(f_d,f_d_dot,f_d_ddot,T)
+    plot_result(f_d[2],f_d_dot[2],f_d_ddot[2],T)
 

@@ -35,6 +35,9 @@ About the code/controller:
 
 # --------- Parameters -----------------------------
 
+#print(robot.joint_ordered_angles()) #Read the robot's joint-angles
+#new_start = {'panda_joint1': 1.938963389436404, 'panda_joint2': 0.6757504724282993, 'panda_joint3': -0.43399745125475564, 'panda_joint4': -2.0375275954865573, 'panda_joint5': -0.05233040021194351, 'panda_joint6': 3.133254153457202, 'panda_joint7': 1.283328743909796}
+
 
 # Generate a desired force-trajectory 
 def generate_F_d(max_num_it,T):
@@ -192,7 +195,10 @@ if __name__ == "__main__":
     publish_rate = 250
     rate = rospy.Rate(publish_rate)
     T = 0.001*(1000/publish_rate) # The control loop's time step
+
+    #robot.move_to_joint_positions(new_start)
     robot.move_to_neutral() # Move the manipulator to its neutral position (starting position)
+
     max_num_it=7500 # Duration of the run
     # Full run = 7500 iterations 
 
@@ -243,6 +249,18 @@ if __name__ == "__main__":
         x_c_history[:,i] = x_d[:,i] + E
         x_history[:,i] = robot.endpoint_pose()['position']
         orientation_error_history[:,i] = quatdiff_in_euler_degrees(robot.endpoint_pose()['orientation'], goal_ori)
+
+    
+    #Uncomment the block below to save plotting-data 
+    """
+    np.save('Admittance_x_d.npy',x_d)
+    np.save('Admittance_x_c.npy',x_c_history)
+    np.save('Admittance_x.npy',x_history)
+    np.save('Admittance_Fz_d.npy',F_d)
+    np.save('Admittance_Fz.npy',F_ext_history[2])
+    np.save('Admittance_ori_error.npy',orientation_error_history) #orientation error in degrees
+    """
+
 
     # Plotting the full result of the run         
     plot_result(F_ext_history,x_c_history,x_history,F_d,x_d,orientation_error_history,T)

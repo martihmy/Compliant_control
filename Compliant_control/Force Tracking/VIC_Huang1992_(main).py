@@ -34,6 +34,8 @@ About the code/controller:
 """
 # --------- Constants -----------------------------
 
+#print(robot.joint_ordered_angles()) #Read the robot's joint-angles
+#new_start = {'panda_joint1': 1.938963389436404, 'panda_joint2': 0.6757504724282993, 'panda_joint3': -0.43399745125475564, 'panda_joint4': -2.0375275954865573, 'panda_joint5': -0.05233040021194351, 'panda_joint6': 3.133254153457202, 'panda_joint7': 1.283328743909796}
 
 # Stiffness
 Kp = 30
@@ -76,7 +78,7 @@ gamma[8,8] = gamma_B
 gamma[14,14] = gamma_K
 
 
-max_num_it = 7500 # Duration of the run 
+max_num_it = 7500/2 # Duration of the run 
 # Full run = 7500 iterations
 
 
@@ -94,6 +96,26 @@ def generate_desired_trajectory(iterations,T):
     if iterations > 6500:
         a[0,4500:4510]=0.00001/T**2
         a[0,6490:6500]=-0.00001/T**2
+    for i in range(max_num_it):
+        if i>0:
+            v[:,i]=v[:,i-1]+a[:,i-1]*T
+            p[:,i]=p[:,i-1]+v[:3,i-1]*T
+    return a,v,p
+
+# Generate a desired trajectory for the manipulator to follow
+def generate_desired_trajectory_express(iterations,T):
+    a = np.zeros((6,iterations))
+    v = np.zeros((6,iterations))
+    p = np.zeros((3,iterations))
+    p[:,0] = get_p()
+    
+    if iterations > 150:
+        a[2,0:50]=-0.00002/T**2
+        a[2,125:175]=0.00002/T**2
+        
+    if iterations > 6500:
+        a[0,2250:2255]=0.00002/T**2
+        a[0,3245:3250]=-0.00002/T**2
     for i in range(max_num_it):
         if i>0:
             v[:,i]=v[:,i-1]+a[:,i-1]*T
@@ -118,6 +140,31 @@ def generate_F_d(max_num_it,T):
             a[2,it]= (-9*(np.pi**2)*(T/4)**2*np.sin(it*T/4*2*np.pi+np.pi/2))/T**2
             it+=1
         a[2,4001]=0.0001/T**2
+    
+    for i in range(max_num_it):
+        if i>0:
+            v[2,i]=v[2,i-1]+a[2,i-1]*T
+            s[2,i]=s[2,i-1]+v[2,i-1]*T
+
+    return s
+
+# Generate a desired force trajectory 
+def generate_F_d_express(max_num_it,T):
+    a = np.zeros((6,max_num_it))
+    v = np.zeros((6,max_num_it))
+    s = np.zeros((6,max_num_it))
+    
+    a[2,0:50] = 0.0010/T**2
+    a[2,100:150] = - 0.0010/T**2
+    if max_num_it > 275:
+        a[2,250:275] = 0.0008/T**2
+    if max_num_it >2001:
+        a[2,750:775]=-0.0008/T**2
+        it = 1000
+        while it <= 2000:
+            a[2,it]= (-9*(np.pi**2)*(T/4)**2*np.sin(2*it*T/4*2*np.pi+np.pi/2))/T**2
+            it+=1
+        a[2,2001]=0.0001/T**2
     
     for i in range(max_num_it):
         if i>0:
@@ -415,6 +462,8 @@ if __name__ == "__main__":
     publish_rate = 250
     rate = rospy.Rate(publish_rate)
     T = 0.001*(1000/publish_rate)
+
+    #robot.move_to_joint_positions(new_start)
     robot.move_to_neutral() 
 
     
@@ -432,10 +481,10 @@ if __name__ == "__main__":
 
 
     # Specify the desired behaviour of the robot
-    x_d_ddot, x_d_dot, p_d = generate_desired_trajectory(max_num_it,T)
+    x_d_ddot, x_d_dot, p_d = generate_desired_trajectory_express(max_num_it,T)
     goal_ori = np.asarray(robot.endpoint_pose()['orientation']) # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
     Rot_d = robot.endpoint_pose()['orientation_R'] # used by the DeSchutter implementation
-    F_d = generate_F_d(max_num_it,T)
+    F_d = generate_F_d_express(max_num_it,T)
 
 
     # ----------- The control loop  -----------   
@@ -472,12 +521,17 @@ if __name__ == "__main__":
             print(K_hat[2][2])
             print('')
 
+    #Uncomment the block below to save plotting-data 
+    """
+    np.save('VIC_p_d.npy',p_d)
+    np.save('VIC_p.npy',p_history)
+    np.save('VIC_Fz_d.npy',F_d)
+    np.save('VIC_Fz.npy',F_ext_history[2])
+    np.save('VIC_delta_x.npy',delta_x_history) #orientation error in radians
+    np.save('VIC_adaptive_gains.npy',z_dynamics_history)
+    """
 
-        
-
-
-        #trajectory[:,i] = np.array([robot.endpoint_pose()['position'][0],robot.endpoint_pose()['position'][1],robot.endpoint_pose()['position'][2]])#
-    
-    #np.save('trajectory.npy',trajectory)#
     plot_result(v_history_num,v_history, p_history, p_d, delta_x_history, F_ext_history, F_d, z_dynamics_history,M,B,K, T)
+
+
 

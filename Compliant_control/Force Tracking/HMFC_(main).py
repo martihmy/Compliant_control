@@ -34,6 +34,10 @@ About the code:
 """
 # --------- Constants / Parameters -----------------------------
 
+#print(robot.joint_ordered_angles()) #Read the robot's joint-angles
+#new_start = {'panda_joint1': 1.938963389436404, 'panda_joint2': 0.6757504724282993, 'panda_joint3': -0.43399745125475564, 'panda_joint4': -2.0375275954865573, 'panda_joint5': -0.05233040021194351, 'panda_joint6': 3.133254153457202, 'panda_joint7': 1.283328743909796}
+
+
 # this array is specifying the force-control-subspace (only doing force control in z)
 S_f = np.array([[0, 0, 1, 0, 0, 0]]).reshape([6,1])
 
@@ -357,6 +361,8 @@ if __name__ == "__main__":
     publish_rate = 250
     rate = rospy.Rate(publish_rate)
     T = 0.001*(1000/publish_rate)
+
+    #robot.move_to_joint_positions(new_start)
     robot.move_to_neutral() 
 
     # List used to contain data needed for calculation of the torque output 
@@ -421,6 +427,15 @@ if __name__ == "__main__":
 
 
         
+    #Uncomment the block below to save plotting-data 
+    """
+    np.save('HMFC_p_d.npy',p_d)
+    np.save('HMFC_p.npy',trajectory)
+    np.save('HMFC_Fz_d.npy',f_d)
+    np.save('HMFC_Fz.npy',z_force_history)
+    np.save('HMFC_ori_error.npy',ori_error) #orientation error in degrees
+    """
+
 
     # Plotting the full result of the run 
     plot_result(z_force_history,f_d,trajectory, p_d, ori_error, f_lambda_history, T, lambda_dot_history, f_d_dot, v_rostopic, v_num)
