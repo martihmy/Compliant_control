@@ -508,7 +508,7 @@ if __name__ == "__main__":
     # ---------- Initialization -------------------
     rospy.init_node("impedance_control")
     robot = PandaArm()
-    publish_rate = 500
+    publish_rate = 250
     rate = rospy.Rate(publish_rate)
     T = 0.001*(1000/publish_rate)
     max_num_it = int(duration /T)
