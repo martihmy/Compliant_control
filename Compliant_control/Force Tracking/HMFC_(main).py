@@ -30,6 +30,8 @@ About the code:
 2]  Due to the faulted joint velocities, a more noisy (and precise) estimate of lambda_dot is considered.
             This is calculated in the function 'get_lambda_dot(...)' in an unorthodox matter
 
+3] The default desired motion- and force-trajectories are now made in a time-consistent matter, so that the PUBLISH RATE can be altered without messing up the desired behaviour. 
+    The number of iterations is calculated as a function of the controller's control-cycle, T: (max_num_it = duration(=15 s) / T)
 
 """
 # --------- Constants / Parameters -----------------------------
@@ -59,7 +61,7 @@ K = np.array([[1, 0, 0, 0, 0, 0],
 C = np.linalg.inv(K)
 
 
-max_num_it=500 # Duration of the run 
+#max_num_it=500 # Duration of the run 
 # Full run = 7500 iterations 
 
 K_Plambda = 45 #force gains
@@ -70,8 +72,8 @@ Pp = 120 #proportional gain for position (x and y)
 Dp = Pp*0.1*0.5*0.5 #damping position (x and y)
 
 #Orientation control dynamics
-Po = 20 #proportional gain for orientation
-Do = 40*0.5*0.5 #damping_orientation
+Po = 40 #proportional gain for orientation
+Do = 20 #damping_orientation
 
 K_Pr = np.array([[Pp, 0, 0, 0, 0], # Stiffness matrix
                 [0, Pp, 0, 0, 0],
@@ -85,8 +87,12 @@ K_Dr = np.array([[Dp, 0, 0, 0, 0], # Damping matrix
                 [0, 0, 0, Do, 0],
                 [0, 0, 0, 0, Do]])
 
+duration = 15 #seconds
 
-# Generate some desired trajectory (position and orientation)
+
+"""Functions for generating desired MOTION trajectories"""
+
+#1 Generate some desired trajectory (position and orientation)
 def generate_desired_trajectory(max_num_it,T):
     a = np.zeros((5,max_num_it))
     v = np.zeros((5,max_num_it))
@@ -102,7 +108,29 @@ def generate_desired_trajectory(max_num_it,T):
             s[:,i]=s[:,i-1]+v[:2,i-1]*T
     return a,v,s
 
-# Generate some desired force trajectory
+#2 Generate some (time-consistent) desired trajectory (position and orientation)
+def generate_desired_trajectory_tc(max_num_it,T,move_in_x=False):
+    a = np.zeros((5,max_num_it))
+    v = np.zeros((5,max_num_it))
+    s = np.zeros((2,max_num_it))
+    
+    s[:,0]= get_p()
+
+    if move_in_x:
+        a[0,int(max_num_it*3/5):int(max_num_it*451/750)]=1.25
+        a[0,int(max_num_it*649/750):int(max_num_it*13/15)]=-1.25
+
+    for i in range(max_num_it):
+        if i>0:
+            v[:,i]=v[:,i-1]+a[:,i-1]*T
+            s[:,i]=s[:,i-1]+v[:2,i-1]*T
+    return a,v,s
+
+
+"""Functions for generating desired FORCE trajectories"""
+
+
+#1 Generate some desired force trajectory
 def generate_F_d(max_num_it,T): 
     a = np.zeros(max_num_it)
     v = np.zeros(max_num_it)
@@ -127,6 +155,30 @@ def generate_F_d(max_num_it,T):
 
     return a,v,s
 
+#2 Generate a (time-consistent) desired force trajectory 
+def generate_F_d_tc(max_num_it,T): 
+    a = np.zeros(max_num_it)
+    v = np.zeros(max_num_it)
+    s = np.zeros(max_num_it)
+    
+    a[0:int(max_num_it/75)] = 62.5
+    a[int(max_num_it/37.5):int(max_num_it/25)] = - 62.5
+    if max_num_it > 275:
+        a[int(max_num_it/15):int(max_num_it*11/150)] = 50
+    if max_num_it >2001:
+        a[int(max_num_it/5):int(max_num_it*31/150)]=-50
+        it = int(max_num_it*4/15)
+        while it <= int(max_num_it*8/15):
+            a[it]= (-9*(np.pi**2)*(T/4)**2*np.sin(2*it*T/4*2*np.pi+np.pi/2))/T**2
+            it+=1
+        a[int(max_num_it*8/15+1)]=6.25
+    
+    for i in range(max_num_it):
+        if i>0:
+            v[i]=v[i-1]+a[i-1]*T
+            s[i]=s[i-1]+v[i-1]*T
+
+    return a,v,s
 
 
 
@@ -361,7 +413,7 @@ if __name__ == "__main__":
     publish_rate = 250
     rate = rospy.Rate(publish_rate)
     T = 0.001*(1000/publish_rate)
-
+    max_num_it = int(duration/T)
     #robot.move_to_joint_positions(new_start)
     robot.move_to_neutral() 
 
@@ -383,8 +435,8 @@ if __name__ == "__main__":
     v_num = np.zeros((5,max_num_it))
 
     # Specify the desired behaviour of the robot
-    r_d_ddot, r_d_dot, p_d = generate_desired_trajectory(max_num_it,T)
-    f_d_ddot,f_d_dot, f_d = generate_F_d(max_num_it,T)
+    r_d_ddot, r_d_dot, p_d = generate_desired_trajectory_tc(max_num_it,T)
+    f_d_ddot,f_d_dot, f_d = generate_F_d_tc(max_num_it,T)
     goal_ori = np.asarray(robot.endpoint_pose()['orientation']) # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
 
 
@@ -409,7 +461,7 @@ if __name__ == "__main__":
 
         # Live printing to screen when the controller is running
         if i%100 == 0:
-            print(i,'= ',T*i,' [s]   ) Force in z: ',robot.endpoint_effort()['force'][2])
+            print(i,' /',max_num_it,'= ',T*i,' [s]   ) Force in z: ',robot.endpoint_effort()['force'][2])
             print('f_lambda: ',f_lambda)
             print('')
 

@@ -29,8 +29,11 @@ About the code/controller:
 
 1] The manipulator is doing quite jerky movements due to the noisiness of force measurements it is acting on 
 
+3] The default desired motion- and force-trajectories are now made in a time-consistent matter, so that the PUBLISH RATE can be altered without messing up the desired behaviour. 
+    The number of iterations is calculated as a function of the controller's control-cycle, T: (max_num_it = duration(=15 s) / T)
 
 """
+
 
 
 # --------- Parameters -----------------------------
@@ -38,8 +41,50 @@ About the code/controller:
 #print(robot.joint_ordered_angles()) #Read the robot's joint-angles
 #new_start = {'panda_joint1': 1.938963389436404, 'panda_joint2': 0.6757504724282993, 'panda_joint3': -0.43399745125475564, 'panda_joint4': -2.0375275954865573, 'panda_joint5': -0.05233040021194351, 'panda_joint6': 3.133254153457202, 'panda_joint7': 1.283328743909796}
 
+"""Functions for generating desired MOTION trajectories"""
 
-# Generate a desired force-trajectory 
+#1  Generate a desired motion-trajectory
+def generate_desired_trajectory(iterations,T):
+    a = np.zeros((3,iterations))
+    v = np.zeros((3,iterations))
+    p = np.zeros((3,iterations))
+    p[:,0] = robot.endpoint_pose()['position']
+    
+    if iterations > 300:
+        a[2,0:100]=-0.00001/T**2
+        a[2,100:200]=0.00001/T**2
+        
+    if iterations > 6500:
+        a[0,4500:4510]=0.00001/T**2
+        a[0,6490:6500]=-0.00001/T**2
+    for i in range(max_num_it):
+        if i>0:
+            v[:,i]=v[:,i-1]+a[:,i-1]*T
+            p[:,i]=p[:,i-1]+v[:,i-1]*T
+    return p
+
+#2  Generate a (time-consistent) desired motion-trajectory
+def generate_desired_trajectory_tc(iterations,T,move_in_x=False): #admittance
+    a = np.zeros((3,iterations))
+    v = np.zeros((3,iterations))
+    p = np.zeros((3,iterations))
+    p[:,0] = robot.endpoint_pose()['position']
+
+    a[2,0:int(max_num_it/75)]=-0.625
+    a[2,int(max_num_it/75):int(max_num_it*2/75)]=0.625
+        
+    if move_in_x:
+        a[0,int(max_num_it*3/5):int(max_num_it*451/750)]=1.25
+        a[0,int(max_num_it*649/750):int(max_num_it*13/15)]=-1.25
+    for i in range(max_num_it):
+        if i>0:
+            v[:,i]=v[:,i-1]+a[:,i-1]*T
+            p[:,i]=p[:,i-1]+v[:,i-1]*T
+    return p
+
+"""Functions for generating desired FORCE trajectories"""
+
+#1  Generate a desired force-trajectory 
 def generate_F_d(max_num_it,T):
     a = np.zeros((6,max_num_it))
     v = np.zeros((6,max_num_it))
@@ -65,25 +110,30 @@ def generate_F_d(max_num_it,T):
 
     return s
 
-# Generate a desired motion-trajectory
-def generate_desired_trajectory(iterations,T):
-    a = np.zeros((3,iterations))
-    v = np.zeros((3,iterations))
-    p = np.zeros((3,iterations))
-    p[:,0] = robot.endpoint_pose()['position']
+#2  Generate a (time-consistent) desired force trajectory 
+def generate_F_d_tc(max_num_it,T):
+    a = np.zeros((6,max_num_it))
+    v = np.zeros((6,max_num_it))
+    s = np.zeros((6,max_num_it))
     
-    if iterations > 300:
-        a[2,0:100]=-0.00001/T**2
-        a[2,100:200]=0.00001/T**2
-        
-    if iterations > 6500:
-        a[0,4500:4510]=0.00001/T**2
-        a[0,6490:6500]=-0.00001/T**2
+    a[2,0:int(max_num_it/75)] = 62.5
+    a[2,int(max_num_it/37.5):int(max_num_it/25)] = - 62.5
+    if max_num_it > 275:
+        a[2,int(max_num_it/15):int(max_num_it*11/150)] = 50
+    if max_num_it >2001:
+        a[2,int(max_num_it/5):int(max_num_it*31/150)]=-50
+        it = int(max_num_it*4/15)
+        while it <= int(max_num_it*8/15):
+            a[2,it]= (-9*(np.pi**2)*(T/4)**2*np.sin(2*it*T/4*2*np.pi+np.pi/2))/T**2
+            it+=1
+        a[2,int(max_num_it*8/15+1)]=6.25
+    
     for i in range(max_num_it):
         if i>0:
-            v[:,i]=v[:,i-1]+a[:,i-1]*T
-            p[:,i]=p[:,i-1]+v[:,i-1]*T
-    return p
+            v[2,i]=v[2,i-1]+a[2,i-1]*T
+            s[2,i]=s[2,i-1]+v[2,i-1]*T
+
+    return s
 
 # ------------ Helper functions --------------------------------
 
@@ -195,11 +245,12 @@ if __name__ == "__main__":
     publish_rate = 250
     rate = rospy.Rate(publish_rate)
     T = 0.001*(1000/publish_rate) # The control loop's time step
-
+    duration = 15
+    max_num_it = int(duration/T)
     #robot.move_to_joint_positions(new_start)
     robot.move_to_neutral() # Move the manipulator to its neutral position (starting position)
 
-    max_num_it=7500 # Duration of the run
+    #max_num_it=7500 # Duration of the run
     # Full run = 7500 iterations 
 
      
@@ -219,8 +270,8 @@ if __name__ == "__main__":
     
     # Specify the desired behaviour of the robot
     goal_ori = robot.endpoint_pose()['orientation'] # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
-    x_d = generate_desired_trajectory(max_num_it,T)
-    F_d = generate_F_d(max_num_it,T)
+    x_d = generate_desired_trajectory_tc(max_num_it,T,move_in_x=True)
+    F_d = generate_F_d_tc(max_num_it,T)
 
 
     # ----------- The control loop  -----------                       

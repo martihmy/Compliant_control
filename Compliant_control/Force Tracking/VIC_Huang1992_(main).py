@@ -30,7 +30,10 @@ About the code/controller:
         used in the controller { get_x_dot(..., numerically = True) }
 
 3] You can now choose between perform_torque_Huang1992() and perform_torque_DeSchutter()
+    - DeSchutter's control-law offers geometrically consitent stiffness and is more computationally expensive
 
+4] The default desired motion- and force-trajectories are now made in a time-consistent matter, so that the PUBLISH RATE can be altered without messing up the desired behaviour. 
+    The number of iterations is calculated as a function of the controller's control-cycle, T: (max_num_it = duration(=15 s) / T)
 """
 # --------- Constants -----------------------------
 
@@ -40,7 +43,7 @@ About the code/controller:
 # Stiffness
 Kp = 30
 Kpz = 30 #initial value (adaptive)
-Ko = 600
+Ko = 900
 K = np.array([[Kp, 0, 0, 0, 0, 0],
                 [0, Kp, 0, 0, 0, 0],
                 [0, 0, Kpz, 0, 0, 0],
@@ -77,12 +80,12 @@ gamma_K = 0.5 #1    # The stiffness' rate of adaptivity (high value = slow chang
 gamma[8,8] = gamma_B
 gamma[14,14] = gamma_K
 
-
-max_num_it = 7500/2 # Duration of the run 
-# Full run = 7500 iterations
+duration = 15 #seconds SHOULD NOT BE ALTERED
 
 
-# Generate a desired trajectory for the manipulator to follow
+"""Functions for generating desired MOTION trajectories"""
+
+#1  Generate a desired trajectory for the manipulator to follow
 def generate_desired_trajectory(iterations,T):
     a = np.zeros((6,iterations))
     v = np.zeros((6,iterations))
@@ -102,18 +105,18 @@ def generate_desired_trajectory(iterations,T):
             p[:,i]=p[:,i-1]+v[:3,i-1]*T
     return a,v,p
 
-# Generate a desired trajectory for the manipulator to follow
+#2  Generate a desired trajectory for the manipulator to follow
 def generate_desired_trajectory_express(iterations,T):
     a = np.zeros((6,iterations))
     v = np.zeros((6,iterations))
     p = np.zeros((3,iterations))
     p[:,0] = get_p()
     
-    if iterations > 150:
+    if iterations > 175:
         a[2,0:50]=-0.00002/T**2
         a[2,125:175]=0.00002/T**2
         
-    if iterations > 6500:
+    if iterations > 3250:
         a[0,2250:2255]=0.00002/T**2
         a[0,3245:3250]=-0.00002/T**2
     for i in range(max_num_it):
@@ -122,8 +125,29 @@ def generate_desired_trajectory_express(iterations,T):
             p[:,i]=p[:,i-1]+v[:3,i-1]*T
     return a,v,p
 
+#3  Generate a (time-consistent) desired motion trajectory
+def generate_desired_trajectory_tc(iterations,T,move_in_x=False):
+    a = np.zeros((6,iterations))
+    v = np.zeros((6,iterations))
+    p = np.zeros((3,iterations))
+    p[:,0] = get_p()
+    
 
-# Generate a desired force trajectory 
+    a[2,0:int(iterations/75)]=-1.25
+    a[2,int(iterations*2/75):int(iterations/25)]= 1.25      
+    if move_in_x:
+        a[0,int(iterations*3/5):int(iterations*451/750)]=1.25
+        a[0,int(iterations*649/750):int(iterations*13/15)]=-1.25
+
+    for i in range(max_num_it):
+        if i>0:
+            v[:,i]=v[:,i-1]+a[:,i-1]*T
+            p[:,i]=p[:,i-1]+v[:3,i-1]*T
+    return a,v,p
+
+"""Functions for generating desired FORCE trajectories"""
+
+#1  Generate a desired force trajectory 
 def generate_F_d(max_num_it,T):
     a = np.zeros((6,max_num_it))
     v = np.zeros((6,max_num_it))
@@ -148,7 +172,7 @@ def generate_F_d(max_num_it,T):
 
     return s
 
-# Generate a desired force trajectory 
+#2  Generate an efficient desired force trajectory 
 def generate_F_d_express(max_num_it,T):
     a = np.zeros((6,max_num_it))
     v = np.zeros((6,max_num_it))
@@ -165,6 +189,31 @@ def generate_F_d_express(max_num_it,T):
             a[2,it]= (-9*(np.pi**2)*(T/4)**2*np.sin(2*it*T/4*2*np.pi+np.pi/2))/T**2
             it+=1
         a[2,2001]=0.0001/T**2
+    
+    for i in range(max_num_it):
+        if i>0:
+            v[2,i]=v[2,i-1]+a[2,i-1]*T
+            s[2,i]=s[2,i-1]+v[2,i-1]*T
+
+    return s
+
+#3  Generate a (time-consistent) desired force trajectory 
+def generate_F_d_tc(max_num_it,T):
+    a = np.zeros((6,max_num_it))
+    v = np.zeros((6,max_num_it))
+    s = np.zeros((6,max_num_it))
+    
+    a[2,0:int(max_num_it/75)] = 62.5
+    a[2,int(max_num_it/37.5):int(max_num_it/25)] = - 62.5
+    if max_num_it > 275:
+        a[2,int(max_num_it/15):int(max_num_it*11/150)] = 50
+    if max_num_it >2001:
+        a[2,int(max_num_it/5):int(max_num_it*31/150)]=-50
+        it = int(max_num_it*4/15)
+        while it <= int(max_num_it*8/15):
+            a[2,it]= (-9*(np.pi**2)*(T/4)**2*np.sin(2*it*T/4*2*np.pi+np.pi/2))/T**2
+            it+=1
+        a[2,int(max_num_it*8/15+1)]=6.25
     
     for i in range(max_num_it):
         if i>0:
@@ -294,7 +343,7 @@ def get_lambda_dot(gamma,xi,K_v,P,F_d):
 
 # Return the updated (adapted) Inertia, Damping and Stiffness matrices.
 def update_MBK_hat(lam,M,B,K):
-    M_hat = M # + np.diagflat(lam[0:6])
+    M_hat = M # + np.diagflat(lam[0:6]) M is chosen to be constant 
     B_hat = B + np.diagflat(lam[6:12])
     K_hat = K + np.diagflat(lam[12:18])
     #ensure_limits(1,5000,M_hat)
@@ -459,9 +508,10 @@ if __name__ == "__main__":
     # ---------- Initialization -------------------
     rospy.init_node("impedance_control")
     robot = PandaArm()
-    publish_rate = 250
+    publish_rate = 500
     rate = rospy.Rate(publish_rate)
     T = 0.001*(1000/publish_rate)
+    max_num_it = int(duration /T)
 
     #robot.move_to_joint_positions(new_start)
     robot.move_to_neutral() 
@@ -481,10 +531,10 @@ if __name__ == "__main__":
 
 
     # Specify the desired behaviour of the robot
-    x_d_ddot, x_d_dot, p_d = generate_desired_trajectory_express(max_num_it,T)
+    x_d_ddot, x_d_dot, p_d = generate_desired_trajectory_tc(max_num_it,T)
     goal_ori = np.asarray(robot.endpoint_pose()['orientation']) # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
     Rot_d = robot.endpoint_pose()['orientation_R'] # used by the DeSchutter implementation
-    F_d = generate_F_d_express(max_num_it,T)
+    F_d = generate_F_d_tc(max_num_it,T)
 
 
     # ----------- The control loop  -----------   
@@ -494,7 +544,7 @@ if __name__ == "__main__":
         x_history[:,i] = get_x(goal_ori)
         delta_x_history[:,i] = get_delta_x(goal_ori,p_d[:,i])
         F_ext_history[:,i] = get_F_ext()
-        x_dot = get_x_dot(x_history,i,T, numerically=True) #chose 'numerically' either 'True' or 'False'
+        x_dot = get_x_dot(x_history,i,T, numerically=False) #chose 'numerically' either 'True' or 'False'
         v_history_num[:,i] = get_x_dot(x_history,i,T, numerically=True) # only for plotting 
         v_history[:,i] = get_x_dot(x_history,i,T) # for calculating error in acceleration 
 
@@ -503,7 +553,8 @@ if __name__ == "__main__":
         lam = lam.reshape([18,1]) + get_lambda_dot(gamma,xi,K_v,P,F_d[:,i]).reshape([18,1]) 
         M_hat,B_hat,K_hat = update_MBK_hat(lam,M,B,K)
 
-        # Apply the resulting torque to the robot 
+        # Apply the resulting torque to the robot
+        """CHOOSE ONE OF THE TWO CONTROLLERS BELOW"""
         #perform_torque_Huang1992(M_hat, B_hat, K_hat, x_d_ddot[:,i], x_d_dot[:,i],x_dot, p_d[:,i], goal_ori)
         perform_torque_DeSchutter(M_hat, B_hat, K_hat, x_d_ddot[:,i], x_d_dot[:,i],x_dot, p_d[:,i], Rot_d)
         rate.sleep()
