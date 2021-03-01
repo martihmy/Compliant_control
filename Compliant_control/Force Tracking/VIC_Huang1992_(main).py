@@ -71,8 +71,8 @@ P = np.identity(6)
 gamma = np.identity(18)
 
 #gamma_M = 12 
-gamma_B = 2 # The damping's rate of adaptivity (high value = slow changes)
-gamma_K = 1 # The stiffness' rate of adaptivity (high value = slow changes)
+gamma_B = 1 #2    # The damping's rate of adaptivity (high value = slow changes)
+gamma_K = 0.5 #1    # The stiffness' rate of adaptivity (high value = slow changes)
 #gamma[2,2] = gamma_M
 gamma[8,8] = gamma_B
 gamma[14,14] = gamma_K
