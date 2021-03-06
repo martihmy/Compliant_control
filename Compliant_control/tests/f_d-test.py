@@ -27,7 +27,7 @@ def plot_result(f_d,f_d_dot,f_d_ddot, T):
     time_array = np.arange(len(f_d))*T
     
 
-    plt.subplot(131)
+    plt.subplot(111)
     plt.title("External force")
     
     #plt.plot(time_array, f_controlled[:], label="force z [N]")
@@ -37,7 +37,7 @@ def plot_result(f_d,f_d_dot,f_d_ddot, T):
     #plt.plot(time_array, f_d[2,:], label="desired torque y [Nm]", color='g',linestyle='dashed')
     plt.xlabel("Real time [s]")
     plt.legend()
-
+    """
     plt.subplot(132)
     plt.title("dot")
     plt.plot(time_array, f_d_dot[:], label="desired force z [N]", color='b',linestyle='dashed')
@@ -49,7 +49,7 @@ def plot_result(f_d,f_d_dot,f_d_ddot, T):
     plt.plot(time_array, f_d_ddot[:], label="desired force z [N]", color='b',linestyle='dashed')
     plt.xlabel("Real time [s]")
     plt.legend()
-
+    """
     plt.show()
 
 

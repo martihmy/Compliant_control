@@ -51,14 +51,14 @@ def plot_result(r_d, v_d, a_d,T):
     time_array = np.arange(len(r_d[0]))*T
     
 
-    plt.subplot(131)
+    plt.subplot(111)
     plt.title("desired trajectory")
     plt.plot(time_array, r_d[0,:], label="r_d x ", color='b',linestyle='dashed')
     plt.plot(time_array, r_d[1,:], label="r_d y ", color='C1',linestyle='dashed')
     plt.plot(time_array, r_d[2,:], label="r_d z", color='g',linestyle='dashed')
     plt.xlabel("Real time [s]")
     plt.legend()
-
+    """
     plt.subplot(132)
     plt.title("desired vel")
     plt.plot(time_array, v_d[0,:], label="v_d x ", color='b')
@@ -74,7 +74,7 @@ def plot_result(r_d, v_d, a_d,T):
     plt.plot(time_array, a_d[2,:], label="a_d z", color='g')
     plt.xlabel("Real time [s]")
     plt.legend()
-
+    """
     plt.show()
 
 
