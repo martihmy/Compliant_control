@@ -74,8 +74,8 @@ P = np.identity(6)
 gamma = np.identity(18)
 
 #gamma_M = 12 
-gamma_B = 1 #2    # The damping's rate of adaptivity (high value = slow changes)
-gamma_K = 0.5 #1    # The stiffness' rate of adaptivity (high value = slow changes)
+gamma_B = 0.001 #2    # The damping's rate of adaptivity (high value = slow changes)
+gamma_K = 0.0005 #1    # The stiffness' rate of adaptivity (high value = slow changes)
 #gamma[2,2] = gamma_M
 gamma[8,8] = gamma_B
 gamma[14,14] = gamma_K
@@ -531,7 +531,7 @@ if __name__ == "__main__":
 
 
     # Specify the desired behaviour of the robot
-    x_d_ddot, x_d_dot, p_d = generate_desired_trajectory_tc(max_num_it,T)
+    x_d_ddot, x_d_dot, p_d = generate_desired_trajectory_tc(max_num_it,T,move_in_x = True)
     goal_ori = np.asarray(robot.endpoint_pose()['orientation']) # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
     Rot_d = robot.endpoint_pose()['orientation_R'] # used by the DeSchutter implementation
     F_d = generate_F_d_tc(max_num_it,T)
@@ -550,7 +550,7 @@ if __name__ == "__main__":
 
         # adapt M,B and K
         xi = get_xi(goal_ori, p_d[:,i],x_dot, x_d_dot[:,i], x_d_ddot[:,i], v_history, i, T)        
-        lam = lam.reshape([18,1]) + get_lambda_dot(gamma,xi,K_v,P,F_d[:,i]).reshape([18,1]) 
+        lam = lam.reshape([18,1]) + get_lambda_dot(gamma,xi,K_v,P,F_d[:,i]).reshape([18,1])*T
         M_hat,B_hat,K_hat = update_MBK_hat(lam,M,B,K)
 
         # Apply the resulting torque to the robot
