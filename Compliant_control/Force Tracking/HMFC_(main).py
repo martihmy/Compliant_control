@@ -72,8 +72,8 @@ Pp = 120 #proportional gain for position (x and y)
 Dp = Pp*0.1*0.5*0.5 #damping position (x and y)
 
 #Orientation control dynamics
-Po = 40 #proportional gain for orientation
-Do = 20 #damping_orientation
+Po =120 #80#40 #proportional gain for orientation
+Do = 40#20 #damping_orientation
 
 K_Pr = np.array([[Pp, 0, 0, 0, 0], # Stiffness matrix
                 [0, Pp, 0, 0, 0],
@@ -435,7 +435,7 @@ if __name__ == "__main__":
     v_num = np.zeros((5,max_num_it))
 
     # Specify the desired behaviour of the robot
-    r_d_ddot, r_d_dot, p_d = generate_desired_trajectory_tc(max_num_it,T)
+    r_d_ddot, r_d_dot, p_d = generate_desired_trajectory_tc(max_num_it,T, move_in_x=True)
     f_d_ddot,f_d_dot, f_d = generate_F_d_tc(max_num_it,T)
     goal_ori = np.asarray(robot.endpoint_pose()['orientation']) # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
 
