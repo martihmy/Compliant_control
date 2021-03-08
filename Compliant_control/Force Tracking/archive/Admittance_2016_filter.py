@@ -28,12 +28,12 @@ The compliant position x_c is fed to a position controller.
 
 About the code/controller:
 
-1] The manipulator is doing quite jerky movements due to the noisiness of force measurements it is acting on 
+1] The manipulator is doing some jerky movements due to the noisiness of force measurements it is acting on 
 
-3] The default desired motion- and force-trajectories are now made in a time-consistent matter, so that the PUBLISH RATE can be altered without messing up the desired behaviour. 
+2] The default desired motion- and force-trajectories are now made in a time-consistent matter, so that the PUBLISH RATE can be altered without messing up the desired behaviour. 
     The number of iterations is calculated as a function of the controller's control-cycle, T: (max_num_it = duration(=15 s) / T)
 
-4] By setting "filtered = True " in "update_F_error_list", you can used a filtered version of the force-measurements
+3] By setting "filtered = True " when calling "update_F_error_list", you can used a filtered version of the force-measurements (not recommended)
 """
 
 
@@ -257,8 +257,8 @@ if __name__ == "__main__":
     publish_rate = 250
     rate = rospy.Rate(publish_rate)
     T = 0.001*(1000/publish_rate) # The control loop's time step
-    #duration = 15
-    max_num_it = 3750#int(duration/T)
+    duration = 15
+    max_num_it = int(duration/T)
     #robot.move_to_joint_positions(new_start)
     robot.move_to_neutral() # Move the manipulator to its neutral position (starting position)
 
@@ -308,7 +308,6 @@ if __name__ == "__main__":
             
         """chose one of the two position controllers: """
         perform_joint_position_control(x_d[:,i],E,goal_ori)
-        #PD_torque_control(x_d[:,i],E,goal_ori)
         
         rate.sleep()
         

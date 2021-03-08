@@ -185,15 +185,14 @@ def update_E_history(E_history, E):
         E_history[i][0] = E[i]
 
 # Calculate E (as in 'step 8' of 'algorithm 2' in Lahr2016 [Understanding the implementation of Impedance Control in Industrial Robots] )
-def calculate_E(T,E_history, F_e_history,M = 1*np.array([1, 1, 1]),B =10*np.array([1, 1, 1]),K= 30*np.array([1, 1, 1])):
+def calculate_E(T,E_history, F_e_history,M = 1*np.array([1, 1, 1]),B =5*np.array([1, 1, 1]),K= 10*np.array([1, 1, 1])):
     x_x = (T**(2) * F_e_history[0][0] + 2* T**(2) * F_e_history[0][1]+ T**(2) * F_e_history[0][2]-(2*K[0]*T**(2)-8*M[0])*E_history[0][0]-(4*M[0] -2*B[0]*T+K[0]*T**(2))*E_history[0][1])/(4*M[0]+2*B[0]*T+K[0]*T**(2))
     x_y = (T**2 * F_e_history[1][0] + 2* T**2 * F_e_history[1][1]+ T**2 * F_e_history[1][2]-(2*K[1]*T**2-8*M[1])*E_history[1][0]-(4*M[1] -2*B[1]*T+K[1]*T**2)*E_history[1][1])/(4*M[1]+2*B[1]*T+K[1]*T**2)
     x_z = (T**2 * F_e_history[2][0] + 2* T**2 * F_e_history[2][1]+ T**2 * F_e_history[2][2]-(2*K[2]*T**2-8*M[2])*E_history[2][0]-(4*M[2] -2*B[2]*T+K[2]*T**2)*E_history[2][1])/(4*M[2]+2*B[2]*T+K[2]*T**2)
     return np.array([x_x,x_y,x_z]) 
 
 # Perform position control with the compliant position (x_c = x_d + E) as input
-def perform_joint_position_control(x_d,E,ori):
-    x_c = x_d + E
+def perform_joint_position_control(x_c,E,ori):
     joint_angles = robot.inverse_kinematics(x_c,ori=ori)[1]
     robot.exec_position_cmd(joint_angles)
 
@@ -223,11 +222,11 @@ def plot_result(force,filtered_Fz,x_c,pos,F_d,x_d,ori_error,T):
 
     plt.subplot(212)
     plt.title("position")
-    plt.plot(time_array, pos[0,:], label = "true x [m]")
-    plt.plot(time_array, pos[1,:], label = "true y [m]")
+    #plt.plot(time_array, pos[0,:], label = "true x [m]")
+    #plt.plot(time_array, pos[1,:], label = "true y [m]")
     plt.plot(time_array, pos[2,:], label = "true  z [m]")
-    plt.plot(time_array, x_d[0,:], label = "desired x [m]", color='b',linestyle='dashed')
-    plt.plot(time_array, x_d[1,:], label = "desired y [m]", color='C1',linestyle='dashed')
+    #plt.plot(time_array, x_d[0,:], label = "desired x [m]", color='b',linestyle='dashed')
+    #plt.plot(time_array, x_d[1,:], label = "desired y [m]", color='C1',linestyle='dashed')
     plt.plot(time_array, x_d[2,:], label = "desired z [m]", color='g',linestyle='dashed')
     plt.plot(time_array, x_c[2,:], label = "compliant z [m]", color='g',linestyle='dotted')
     plt.xlabel("Real time [s]")
@@ -302,12 +301,13 @@ if __name__ == "__main__":
          
         if i%2==0:
             E = calculate_E(T,E_history, F_error_list)
+            x_c = x_d[:,i]+E
         update_E_history(E_history,E)
         
 
             
         """chose one of the two position controllers: """
-        perform_joint_position_control(x_d[:,i],E,goal_ori)
+        perform_joint_position_control(x_c,E,goal_ori)
         #PD_torque_control(x_d[:,i],E,goal_ori)
         
         rate.sleep()

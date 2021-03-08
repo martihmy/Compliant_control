@@ -11,7 +11,6 @@ from franka_interface import ArmInterface
 from panda_robot import PandaArm
 import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation
-from scipy import signal
 
 np.set_printoptions(precision=2)
 
@@ -28,12 +27,11 @@ The compliant position x_c is fed to a position controller.
 
 About the code/controller:
 
-1] The manipulator is doing some jerky movements due to the noisiness of force measurements it is acting on 
+1] The manipulator is doing quite jerky movements due to the noisiness of force measurements it is acting on 
 
-2] The default desired motion- and force-trajectories are now made in a time-consistent matter, so that the PUBLISH RATE can be altered without messing up the desired behaviour. 
+3] The default desired motion- and force-trajectories are now made in a time-consistent matter, so that the PUBLISH RATE can be altered without messing up the desired behaviour. 
     The number of iterations is calculated as a function of the controller's control-cycle, T: (max_num_it = duration(=15 s) / T)
 
-3] By setting "filtered = True " when calling "update_F_error_list", you can used a filtered version of the force-measurements (not recommended)
 """
 
 
@@ -158,22 +156,13 @@ def quatdiff_in_euler_degrees(quat_curr, quat_des):
 
 # -------------- Main functions --------------------
 
-# Low-pass filter
-def real_time_filter(value,z,b):
-    filtered_value, z = signal.lfilter(b, 1, [value], zi=z)
-    return filtered_value,z
-
-
 # Update the list of the last three recorded force errors
-def update_F_error_list(F_error_list,F_d,filtered_Fz,filtered= True): #setting forces in x and y = 0
+def update_F_error_list(F_error_list,F_d): #setting forces in x and y = 0
     for i in range(3): #update for x, then y, then z
         F_error_list[i][2]=F_error_list[i][1]
         F_error_list[i][1]=F_error_list[i][0]
         if i ==2:
-            if filtered:
-                F_error_list[i][0] = filtered_Fz-F_d[i]
-            else: 
-                F_error_list[i][0] = robot.endpoint_effort()['force'][i]-F_d[i]
+            F_error_list[i][0] = robot.endpoint_effort()['force'][i]-F_d[i]
         else:
             F_error_list[i][0] = 0
 
@@ -193,7 +182,7 @@ def calculate_E(T,E_history, F_e_history,M = 1*np.array([1, 1, 1]),B =5*np.array
 
 # Perform position control with the compliant position (x_c = x_d + E) as input
 def perform_joint_position_control(x_d,E,ori):
-    x_c = x_d + E
+    x_c=x_d+E
     joint_angles = robot.inverse_kinematics(x_c,ori=ori)[1]
     robot.exec_position_cmd(joint_angles)
 
@@ -201,27 +190,21 @@ def perform_joint_position_control(x_d,E,ori):
 
 
 
-
-
-
-
-
 # -------------- Plotting ------------------------
 
-def plot_result(force,filtered_Fz,x_c,pos,F_d,x_d,ori_error,T):
+def plot_result(force,x_c,pos,F_d,x_d,ori_error,T):
 
     time_array = np.arange(len(F_d[0]))*T
     
 
-    plt.subplot(211)
+    plt.subplot(131)
     plt.title("Sensed external wrench")
     plt.plot(time_array, force[2,:], label="force z [N]")
-    #plt.plot(time_array, filtered_Fz, label="filtered force z [N]")
     plt.plot(time_array, F_d[2,:], label = " desired z-force [N]", color='b',linestyle='dashed')
     plt.xlabel("Real time [s]")
     plt.legend()
 
-    plt.subplot(212)
+    plt.subplot(132)
     plt.title("position")
     plt.plot(time_array, pos[0,:], label = "true x [m]")
     plt.plot(time_array, pos[1,:], label = "true y [m]")
@@ -232,7 +215,7 @@ def plot_result(force,filtered_Fz,x_c,pos,F_d,x_d,ori_error,T):
     plt.plot(time_array, x_c[2,:], label = "compliant z [m]", color='g',linestyle='dotted')
     plt.xlabel("Real time [s]")
     plt.legend()
-    """
+    
     plt.subplot(133)
     plt.title("Error in orientation")
     plt.plot(time_array, ori_error[0,:], label = "true  Ori_x [degrees]")
@@ -240,7 +223,7 @@ def plot_result(force,filtered_Fz,x_c,pos,F_d,x_d,ori_error,T):
     plt.plot(time_array, ori_error[2,:], label = "true  Ori_z [degrees]")
     plt.xlabel("Real time [s]")
     plt.legend()
-    """
+    
     plt.show()
 
 
@@ -275,7 +258,6 @@ if __name__ == "__main__":
     x_history = np.zeros((3,max_num_it))
     x_c_history = np.zeros((3,max_num_it))
     F_ext_history = np.zeros((6,max_num_it))
-    filtered_Fz = np.zeros(max_num_it)
     orientation_error_history = np.zeros((3,max_num_it))
     #desired_ori_degrees = get_ori_degrees()
 
@@ -286,25 +268,17 @@ if __name__ == "__main__":
     x_d = generate_desired_trajectory_tc(max_num_it,T,move_in_x=True)
     F_d = generate_F_d_tc(max_num_it,T)
 
-    #Filter-parameters
-    b = signal.firwin(3, 0.001)
-    z = signal.lfilter_zi(b, 1)
 
     # ----------- The control loop  -----------                       
     for i in range(max_num_it):
-        filtered_Fz[i],z = real_time_filter(robot.endpoint_effort()['force'][2],z,b)
-        if i <15:
-            filtered_Fz[i] = robot.endpoint_effort()['force'][2]
         
         
         # Update the compliant position every X'th iteration
-        update_F_error_list(F_error_list,F_d[:,i],filtered_Fz[i],filtered=False)
-         
-        if i%2==0:
+        update_F_error_list(F_error_list,F_d[:,i])
+        if i%2==0:    
             E = calculate_E(T,E_history, F_error_list)
+            #x_c = x_d[:,i] + E
         update_E_history(E_history,E)
-        
-
             
         """chose one of the two position controllers: """
         perform_joint_position_control(x_d[:,i],E,goal_ori)
@@ -335,5 +309,5 @@ if __name__ == "__main__":
 
 
     # Plotting the full result of the run         
-    plot_result(F_ext_history,filtered_Fz,x_c_history,x_history,F_d,x_d,orientation_error_history,T)
+    plot_result(F_ext_history,x_c_history,x_history,F_d,x_d,orientation_error_history,T)
 

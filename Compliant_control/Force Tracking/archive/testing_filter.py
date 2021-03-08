@@ -17,9 +17,9 @@ def real_time_filter(value,z,b):
 
 if __name__ == '__main__':
     
-    data = np.load('/home/martin/franka_emika_panda2/catkin_ws/src/panda_simulator/Compliant_control/Force Tracking/Admittance_Fz.npy')
+    data = np.load('/home/martin/franka_emika_panda2/catkin_ws/src/panda_simulator/Compliant_control/Force Tracking/archive/Admittance_Fz.npy')
 
-    b = signal.firwin(150, 0.004)
+    b = signal.firwin(100, 0.005)
     z = signal.lfilter_zi(b, 1)
 
     filtered = np.zeros(len(data))
@@ -37,5 +37,9 @@ if __name__ == '__main__':
     """    
     #filtered = filter_sbs(data)
 
-    plt.plot(time_array, filtered, label = "force in z [N]")
+
+    plt.plot(time_array, filtered, label = "FILTERED force in z [N]")
+    plt.plot(time_array, data, label = 'force in z [N]')
+    plt.xlabel("Real time [s]")
+    plt.legend()
     plt.show()
