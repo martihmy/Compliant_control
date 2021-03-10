@@ -39,6 +39,7 @@ About the code/controller:
 
 #print(robot.joint_ordered_angles()) #Read the robot's joint-angles
 #new_start = {'panda_joint1': 1.938963389436404, 'panda_joint2': 0.6757504724282993, 'panda_joint3': -0.43399745125475564, 'panda_joint4': -2.0375275954865573, 'panda_joint5': -0.05233040021194351, 'panda_joint6': 3.133254153457202, 'panda_joint7': 1.283328743909796}
+cartboard = {'panda_joint1': 1.5100039307153879, 'panda_joint2': 0.6066719992230666, 'panda_joint3': 0.024070900507747097, 'panda_joint4': -2.332000750114692, 'panda_joint5': -0.037555063873529436, 'panda_joint6': 2.9529732850154575, 'panda_joint7': 0.7686490028450895}
 
 # Stiffness
 Kp = 30
@@ -222,6 +223,21 @@ def generate_F_d_tc(max_num_it,T):
 
     return s
 
+
+def generate_F_d_robot(max_num_it,T):
+    a = np.zeros((6,max_num_it))
+    v = np.zeros((6,max_num_it))
+    s = np.zeros((6,max_num_it))
+    s = [2,0]= -robot.endpoint_effort()['force'][2]
+    a[2,0:100] = 0.0005/T**2
+    a[2,100:200] = - 0.0005/T**2
+
+    for i in range(max_num_it):
+        if i>0:
+            v[2,i]=v[2,i-1]+a[2,i-1]*T
+            s[2,i]=s[2,i-1]+v[2,i-1]*T
+
+    return a,v,s
 # ------------ Helper functions --------------------------------
 
 
@@ -254,11 +270,17 @@ def get_W(inv = False):
 
 
 # Return the external forces (everything except for z-force is set to 0 due to offsets)
-def get_F_ext(two_dim = False):
+def get_F_ext(two_dim = False,sim=False):
     if two_dim == True:
-        return np.array([0,0,robot.endpoint_effort()['force'][2],0,0,0]).reshape([6,1])
+        if sim:
+            return np.array([0,0,robot.endpoint_effort()['force'][2],0,0,0]).reshape([6,1])
+        else:
+            return np.array([0,0,-robot.endpoint_effort()['force'][2],0,0,0]).reshape([6,1])
     else:
-        return np.array([0,0,robot.endpoint_effort()['force'][2],0,0,0])
+        if sim:
+            return np.array([0,0,robot.endpoint_effort()['force'][2],0,0,0])
+        else:
+            return np.array([0,0,-robot.endpoint_effort()['force'][2],0,0,0])
 
 
 # Return the position and (relative) orientation 
@@ -513,8 +535,8 @@ if __name__ == "__main__":
     T = 0.001*(1000/publish_rate)
     max_num_it = int(duration /T)
 
-    #robot.move_to_joint_positions(new_start)
-    robot.move_to_neutral() 
+    robot.move_to_joint_positions(cartboard)
+    #robot.move_to_neutral() 
 
     
     # List used to contain data needed for calculation of the torque output 
@@ -534,7 +556,7 @@ if __name__ == "__main__":
     x_d_ddot, x_d_dot, p_d = generate_desired_trajectory_tc(max_num_it,T,move_in_x = True)
     goal_ori = np.asarray(robot.endpoint_pose()['orientation']) # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
     Rot_d = robot.endpoint_pose()['orientation_R'] # used by the DeSchutter implementation
-    F_d = generate_F_d_tc(max_num_it,T)
+    F_d = generate_F_d_robot(max_num_it,T)
 
 
     # ----------- The control loop  -----------   

@@ -117,18 +117,20 @@ def generate_desired_trajectory_time_consistent_VIC(iterations,T):
             p[:,i]=p[:,i-1]+v[:3,i-1]*T
     return a,v,p
 
-def generate_desired_trajectory_tc(iterations,T): #admittance
+
+
+def generate_desired_trajectory_tc(iterations,T,move_in_x=False): #admittance
     a = np.zeros((3,iterations))
     v = np.zeros((3,iterations))
     p = np.zeros((3,iterations))
     p[:,0] = robot.endpoint_pose()['position']
 
-    a[2,0:int(max_num_it/75)]=-0.625
-    a[2,int(max_num_it/75):int(max_num_it*2/75)]=0.625
+    a[2,0:int(max_num_it/75)]=-0.625/5
+    a[2,int(max_num_it/75):int(max_num_it*2/75)]=0.625/5
         
-
-    a[0,int(max_num_it*3/5):int(max_num_it*451/750)]=1.25
-    a[0,int(max_num_it*649/750):int(max_num_it*13/15)]=-1.25
+    if move_in_x:
+        a[0,int(max_num_it*3/5):int(max_num_it*451/750)]=1.25/5
+        a[0,int(max_num_it*649/750):int(max_num_it*13/15)]=-1.25/5
     for i in range(max_num_it):
         if i>0:
             v[:,i]=v[:,i-1]+a[:,i-1]*T
