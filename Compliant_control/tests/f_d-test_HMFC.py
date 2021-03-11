@@ -55,7 +55,7 @@ def plot_result(f_d,f_d_dot,f_d_ddot, T):
 
 # HELPER FUNCTIONS
 
-def get_Fz(sim=False):
+def get_lambda(sim=False):
     if sim:
         return robot.endpoint_effort()['force'][2]
     else:
@@ -63,18 +63,19 @@ def get_Fz(sim=False):
 
 # Fd generation
 
-def generate_F_d_robot(max_num_it,T,sim=False):
-    a = np.zeros((6,max_num_it))
-    v = np.zeros((6,max_num_it))
-    s = np.zeros((6,max_num_it))
-    s[2,0]= get_Fz(sim)+1
-    a[2,0:100] = 0.0005/T**2
-    a[2,100:200] = - 0.0005/T**2
+def generate_F_d_robot4(max_num_it,T,sim=False):
+    a = np.zeros(max_num_it)
+    v = np.zeros(max_num_it)
+    s = np.zeros(max_num_it)
+    s[0]= get_lambda(sim)+2.5
+   #a[0:10] = 0.005/T**2
+    v[0]=0.05/T
+    a[20:70] = -0.001/T**2
 
     for i in range(max_num_it):
         if i>0:
-            v[2,i]=v[2,i-1]+a[2,i-1]*T
-            s[2,i]=s[2,i-1]+v[2,i-1]*T
+            v[i]=v[i-1]+a[i-1]*T
+            s[i]=s[i-1]+v[i-1]*T
 
     return a,v,s
 
@@ -83,7 +84,7 @@ if __name__ == "__main__":
     sim=True
     rospy.init_node("impedance_control")
     robot = PandaArm()
-    publish_rate = 250
+    publish_rate = 150
     duration=15
     rate = rospy.Rate(publish_rate)
     T = 0.001*(1000/publish_rate)
@@ -91,8 +92,8 @@ if __name__ == "__main__":
 
     
 
-    f_d_ddot,f_d_dot, f_d = generate_F_d_robot(max_num_it,T,sim)
+    f_d_ddot,f_d_dot, f_d = generate_F_d_robot4(max_num_it,T,sim)
 
 
-    plot_result(f_d[2],f_d_dot[2],f_d_ddot[2],T)
+    plot_result(f_d,f_d_dot,f_d_ddot,T)
 
