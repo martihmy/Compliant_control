@@ -178,12 +178,12 @@ def real_time_filter(value,z,b):
 
 
 # Update the list of the last three recorded force errors
-def update_F_error_list(F_error_list,F_d,sim): #setting forces in x and y = 0
+def update_F_error_list(F_error_list,F_d,Fz,sim): #setting forces in x and y = 0
     for i in range(3): #update for x, then y, then z
         F_error_list[i][2]=F_error_list[i][1]
         F_error_list[i][1]=F_error_list[i][0]
         if i ==2:
-            F_error_list[i][0] = get_Fz(sim)-F_d[i]
+            F_error_list[i][0] = Fz-F_d[i]
         else:
             F_error_list[i][0] = 0
 
@@ -195,7 +195,7 @@ def update_E_history(E_history, E):
         E_history[i][0] = E[i]
 
 # Calculate E (as in 'step 8' of 'algorithm 2' in Lahr2016 [Understanding the implementation of Impedance Control in Industrial Robots] )
-def calculate_E(T,E_history, F_e_history,M = 1*np.array([1, 1, 1]),B =10*np.array([1, 1, 1]),K= 30*np.array([1, 1, 1])):
+def calculate_E(T,E_history, F_e_history,M = 1*np.array([1, 1, 1]),B =300*np.array([1, 1, 1]),K= 400*np.array([1, 1, 1])):
     x_x = (T**(2) * F_e_history[0][0] + 2* T**(2) * F_e_history[0][1]+ T**(2) * F_e_history[0][2]-(2*K[0]*T**(2)-8*M[0])*E_history[0][0]-(4*M[0] -2*B[0]*T+K[0]*T**(2))*E_history[0][1])/(4*M[0]+2*B[0]*T+K[0]*T**(2))
     x_y = (T**2 * F_e_history[1][0] + 2* T**2 * F_e_history[1][1]+ T**2 * F_e_history[1][2]-(2*K[1]*T**2-8*M[1])*E_history[1][0]-(4*M[1] -2*B[1]*T+K[1]*T**2)*E_history[1][1])/(4*M[1]+2*B[1]*T+K[1]*T**2)
     x_z = (T**2 * F_e_history[2][0] + 2* T**2 * F_e_history[2][1]+ T**2 * F_e_history[2][2]-(2*K[2]*T**2-8*M[2])*E_history[2][0]-(4*M[2] -2*B[2]*T+K[2]*T**2)*E_history[2][1])/(4*M[2]+2*B[2]*T+K[2]*T**2)
@@ -284,6 +284,9 @@ def move_to_start(alternative_position, sim):
     else:
         robot.move_to_joint_positions(alternative_position)
 
+def fetch_states(sim):
+    Fz = get_Fz(sim)
+    return Fz
 
 
 # -------------- Running the controller ---------------------
@@ -295,7 +298,7 @@ if __name__ == "__main__":
     rospy.init_node("admittance_control")
     robot = PandaArm()
     
-    publish_rate = 250
+    publish_rate = 100
     rate = rospy.Rate(publish_rate)
     T = 0.001*(1000/publish_rate) # The control loop's time step
     duration = 15
@@ -310,6 +313,7 @@ if __name__ == "__main__":
     F_error_list = np.zeros((3,3))
     E = np.zeros(3)
     E_history = np.zeros((3,3))
+    time_per_iteration = np.zeros(max_num_it)
     
     # Lists providing data for plotting
     x_history = np.zeros((3,max_num_it))
@@ -333,12 +337,13 @@ if __name__ == "__main__":
 
     # ----------- The control loop  -----------                       
     for i in range(max_num_it):        
-        
+        time_per_iteration[i]=rospy.get_time()
+        Fz = fetch_states(sim)
         # Update the compliant position every X'th iteration
-        update_F_error_list(F_error_list,F_d[:,i],sim)
+        update_F_error_list(F_error_list,F_d[:,i],Fz,sim)
          
-        if i%2==0:
-            E = calculate_E(T,E_history, F_error_list)
+        #if i%2==0:
+        E = calculate_E(T,E_history, F_error_list) #inskutt tidligere
         update_E_history(E_history,E)
         
 
@@ -346,12 +351,12 @@ if __name__ == "__main__":
         """position control """
         perform_joint_position_control(x_d[:,i],E,goal_ori)
         
-        #rate.sleep()
+        rate.sleep()
         
         
         # Live printing to screen when the controller is running
         if i%100==0: 
-            print(i,', pos:',robot.endpoint_pose()['position'],' F: ', get_Fz(sim))
+            print(i,' of ',max_num_it,', pos:',robot.endpoint_pose()['position'],' F: ', get_Fz(sim))
 
         # Collecting data for plotting
         Fz_history[i]=get_Fz(sim)

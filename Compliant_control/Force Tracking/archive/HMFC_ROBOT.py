@@ -12,6 +12,7 @@ from panda_robot import PandaArm
 import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation
 np.set_printoptions(precision=2)
+import time
 """
 
 
@@ -67,16 +68,16 @@ C = np.linalg.inv(K)
 #max_num_it=500 # Duration of the run 
 # Full run = 7500 iterations 
 
-K_Plambda = 45 #force gains
+K_Plambda = 1#45/10 #force gains
 K_Dlambda = K_Plambda*0.07/10 #K_Plambda*0.633 #random
 
 #Position control dynamics:
-Pp = 60 #proportional gain for position (x and y)
-Dp = Pp*0.1*0.5*0.5 #damping position (x and y)
+Pp = 100#60#proportional gain for position (x and y)
+Dp = Pp*0.1#damping position (x and y)
 
 #Orientation control dynamics
-Po =120 #80#40 #proportional gain for orientation
-Do = 40#20 #damping_orientation
+Po =20#120 #80#40 #proportional gain for orientation
+Do = Po/3 #damping_orientation
 
 K_Pr = np.array([[Pp, 0, 0, 0, 0], # Stiffness matrix
                 [0, Pp, 0, 0, 0],
@@ -269,12 +270,12 @@ def get_joint_velocities():
 # Return the linear and angular velocities
 # Numerically = True -> return the derivarive of the state-vector
 # Numerically = False -> read values from rostopic (faulty in sim when interacting with the environment)
-def get_v(x_hist,i,T, numerically=False, two_dim=True):
+def get_v(x_hist,i,time_per_iteration, numerically=False, two_dim=True):
     if numerically == True:
         if two_dim == True:
-            return get_derivative_of_vector(x_hist,i,T).reshape([5,1])
+            return get_derivative_of_vector(x_hist,i,time_per_iteration).reshape([5,1])
         else:
-            return get_derivative_of_vector(x_hist,i,T)
+            return get_derivative_of_vector(x_hist,i,time_per_iteration)
 
     else:
         if two_dim == True:
@@ -284,14 +285,15 @@ def get_v(x_hist,i,T, numerically=False, two_dim=True):
 
 # Return the position and (relative) orientation 
 def get_x(goal_ori):
-    pos_x = robot.endpoint_pose()['position'][:2]
+    p = robot.endpoint_pose()['position']
+    pos_x = p[:2]
     rel_ori = quatdiff_in_euler_radians(goal_ori, np.asarray(robot.endpoint_pose()['orientation']))
-    return np.append(pos_x,rel_ori)
+    return p,np.append(pos_x,rel_ori)
 
 
 # Fetch the linear (cartesian) velocities
 def get_cartesian_v():
-    return np.array([robot.endpoint_velocity()['linear'][0],robot.endpoint_velocity()['linear'][1],robot.endpoint_velocity()['linear'][2]])
+    return robot.endpoint_velocity()['linear']
 
 
 # Fetch the joint angles
@@ -301,7 +303,7 @@ def get_joint_angles():
 
 # Fetch the position (in the subspace subject to motion control)
 def get_p():
-    return np.array([robot.endpoint_pose()['position'][0],robot.endpoint_pose()['position'][1]])
+    return robot.endpoint_pose()['position'][0:2]
 
 
 # Fetch the estimated external force in z 
@@ -314,16 +316,14 @@ def get_lambda(sim=False):
 
 
 # Fetch the estimated external forces and torques (h_e / F_ext)
-def get_h_e(sim=False):
-    if sim:
-        return np.array([0,0,robot.endpoint_effort()['force'][2],0,0,0])
-    else:
-        return np.array([0,0,-robot.endpoint_effort()['force'][2],0,0,0])
+def get_h_e(Fz):
+    return np.array([0,0,Fz,0,0,0])
+
 
 
 # Fetch a simplified, less noisy estimate of the derivative of the external force in z 
-def get_lambda_dot(S_f_inv,h_e_hist,i,T):
-    h_e_dot = get_derivative_of_vector(h_e_hist,i,T)/30#40
+def get_lambda_dot(S_f_inv,h_e_hist,i,time_per_iteration):
+    h_e_dot = get_derivative_of_vector(h_e_hist,i,time_per_iteration)/30#40
     cap = 20#50
     if abs(h_e_dot[2]) > cap:
         h_e_dot[2] = np.sign(h_e_dot[2])*cap
@@ -342,9 +342,10 @@ def get_K_dot(S_f,S_f_inv,C):
 
 
 # Calculate the numerical derivative of a each row in a vector
-def get_derivative_of_vector(history,iteration,T):
+def get_derivative_of_vector(history,iteration,time_per_iteration):
     size = history.shape[0]
     if iteration > 0:
+        T = np.subtract(time_per_iteration[int(iteration)],time_per_iteration[int(iteration-1)])
         #return ((history[:,iteration]-history[:,iteration-1]).reshape([size,1])/T).reshape([size,1])
         return np.subtract(history[:,iteration],history[:,iteration-1])/T
     else:
@@ -365,29 +366,31 @@ def get_delta_r(goal_ori, p_d, two_dim = True):
 # ------------  Calculation of torque -----------------
 
 # Calculate f_lambda (part of equation 9.62) as in equation (9.65) in chapter 9.3 of The Handbook of Robotics
-def calculate_f_lambda(f_d_ddot, f_d_dot, f_d, i,T, S_f,C,K_Dlambda,K_Plambda, z_force,h_e_hist):
+def calculate_f_lambda(f_d_ddot, f_d_dot, f_d, i,time_per_iteration, S_f,C,K_Dlambda,K_Plambda, z_force,h_e_hist):
     S_f_inv = get_S_inv(S_f,C)
     K_dot = get_K_dot(S_f,S_f_inv,C)
     #lambda_dot = (np.linalg.multi_dot([S_f_inv,K_dot,robot.jacobian(),get_joint_velocities()])) # At least not correct for interaction tasks in simulation (due to incorrect readings of joint velocity)
-    lambda_dot = get_lambda_dot(S_f_inv,h_e_hist,i,T)
+    lambda_dot = get_lambda_dot(S_f_inv,h_e_hist,i,time_per_iteration)
     lambda_a = f_d_ddot
     lambda_b = np.array(np.dot(K_Dlambda,(f_d_dot-lambda_dot)))
     lambda_c = np.dot(K_Plambda,(f_d-z_force))
     return max(lambda_a + lambda_b + lambda_c,0)
 
 # Get the subproducts of f_lambda (for plotting/troubleshooting)
-def get_f_lambda_subproducts(f_d_ddot, f_d_dot, f_d, i,T, S_f,C,K_Dlambda,K_Plambda, z_force,h_e_hist):
+def get_f_lambda_subproducts(f_d_ddot, f_d_dot, f_d, i,time_per_iteration, S_f,C,K_Dlambda,K_Plambda, z_force,h_e_hist,sim):
     S_f_inv = get_S_inv(S_f,C)
     K_dot = get_K_dot(S_f,S_f_inv,C)
-    #lambda_dot = (np.linalg.multi_dot([S_f_inv,K_dot,robot.jacobian(),get_joint_velocities()])) # At least not correct for interaction tasks in simulation (due to incorrect readings of joint velocity)
-    lambda_dot = get_lambda_dot(S_f_inv,h_e_hist,i,T)
+    if sim: 
+        lambda_dot = get_lambda_dot(S_f_inv,h_e_hist,i,time_per_iteration)
+    else: 
+        lambda_dot = (np.linalg.multi_dot([S_f_inv,K_dot,robot.jacobian(),get_joint_velocities()])) # At least not correct for interaction tasks in simulation (due to incorrect readings of joint velocity)
     lambda_a = f_d_ddot
     lambda_b = np.array(np.dot(K_Dlambda,(f_d_dot-lambda_dot)))
     lambda_c = np.dot(K_Plambda,(f_d-z_force))
-    return lambda_a, lambda_b, lambda_c, (max(lambda_a + lambda_b + lambda_c,0))
+    return lambda_dot, lambda_a, lambda_b, lambda_c, (lambda_a + lambda_b + lambda_c)
 
 # Calculate alpha_v (part of equation 9.62) as on page 213 in chapter 9.3 of The Handbook of Robotics
-def calculate_alpha_v(i,T, goal_ori, r_d_ddot, r_d_dot, p_d,K_Pr,K_Dr,v):
+def calculate_alpha_v(i, goal_ori, r_d_ddot, r_d_dot, p_d,K_Pr,K_Dr,v):
     return (r_d_ddot.reshape([5,1]) + np.array(np.dot(K_Dr,r_d_dot.reshape([5,1])-v)).reshape([5,1])+ np.array(np.dot(K_Pr,get_delta_r(goal_ori,p_d))).reshape([5,1]))
 
 # Calculate alpha (part of equation 9.16) as in equation (9.62) in chapter 9.3 of The Handbook of Robotics
@@ -398,16 +401,20 @@ def calculate_alpha(S_v, alpha_v,C,S_f,f_lambda):
     return np.array(np.dot(S_v, alpha_v)).reshape([6,1]) + f_lambda*np.array(np.dot(C_dot,S_f)).reshape([6,1])
 
 # Calculate and perform the torque as in equation (9.16) in chapter 9.2 of The Handbook of Robotics
-def perform_torque(alpha,sim):
-    cartesian_inertia = np.linalg.inv(np.linalg.multi_dot([robot.jacobian(),np.linalg.inv(robot.joint_inertia_matrix()),robot.jacobian().T]))
-    alpha_torque = np.array(np.linalg.multi_dot([robot.jacobian().T,cartesian_inertia,alpha])).reshape([7,1])
-    external_torque = np.dot(robot.jacobian().T,get_h_e(sim)).reshape([7,1])
-    torque = alpha_torque + robot.coriolis_comp().reshape([7,1]) - external_torque
-    robot.set_joint_torques(dict(list(zip(robot.joint_names(),torque))))
+def perform_torque(alpha,sim,jacobian,h_e,joint_names):
+    cartesian_inertia = np.linalg.inv(np.linalg.multi_dot([jacobian,np.linalg.inv(robot.joint_inertia_matrix()),jacobian.T])) #0.3 to 74 ms
+
+
+    alpha_torque = np.array(np.linalg.multi_dot([jacobian.T,cartesian_inertia,alpha])).reshape([7,1])
+    external_torque = np.dot(jacobian.T,h_e).reshape([7,1])
+    torque = alpha_torque + robot.coriolis_comp().reshape([7,1]) + external_torque
+    robot.set_joint_torques(dict(list(zip(joint_names,torque))))
+ 
+    
 
 # Plot the result of the run 
 
-def plot_result(time_per_iteration, fz_raw, fz_d_raw ,p, p_d, ori_error, f_lambda,T, lambda_dot,f_d_dot, v_rostopic, v_num):
+def plot_result(time_per_iteration, fz_raw, fz_d_raw ,p, p_d, ori_error, f_lambda,T, lambda_dot,f_d_dot):#, v_rostopic, v_num):
 
     time_array = np.arange(len(p[0]))*T
     fz = fz_raw - fz_raw[0] #remove offset
@@ -488,6 +495,18 @@ def move_to_start(alternative_position, sim):
     else:
         robot.move_to_joint_positions(alternative_position)
 
+def fetch_states(goal_ori, x_history,i,time_per_iteration, sim):
+    
+    z_force = get_lambda(sim)
+    h_e = get_h_e(z_force)
+    p,x = get_x(goal_ori)
+    jacobian = robot.zero_jacobian()
+    if sim:
+        v = get_v(x_history,i,time_per_iteration, numerically=True)
+    else:
+        v = get_v(x_history,i,time_per_iteration, numerically=False)
+    return z_force, h_e,p,x,jacobian,v
+
 
 # -------------- Running the controller ---------------------
 
@@ -495,16 +514,14 @@ if __name__ == "__main__":
 
     # ---------- Initialization -------------------
     sim = True
-    rospy.init_node("impedance_control")
-    robot = PandaArm()
-    publish_rate = 150
-    if sim:
-        rate = rospy.Rate(publish_rate)#/7
-    else:
-        rate = rospy.Rate(publish_rate)
+    rospy.init_node("HMFC")
+    robot = ArmInterface()
+    publish_rate = 20
+    rate = rospy.Rate(publish_rate)
     T = 0.001*(1000/publish_rate)
-    max_num_it = int(duration/T)
+    max_num_it = publish_rate*duration
     move_to_start(cartboard,sim)
+    joint_names=robot.joint_names()
 
 
     # List used to contain data needed for calculation of the torque output 
@@ -527,30 +544,39 @@ if __name__ == "__main__":
     time_per_iteration = np.zeros(max_num_it)
 
     # Specify the desired behaviour of the robot
-    r_d_ddot, r_d_dot, p_d = generate_desired_trajectory_tc(max_num_it,T, move_in_x=True)
+    r_d_ddot, r_d_dot, p_d = generate_desired_trajectory_tc(max_num_it,T, move_in_x=False)
     f_d_ddot,f_d_dot, f_d = generate_F_d_robot4(max_num_it,T,sim)
     goal_ori = np.asarray(robot.endpoint_pose()['orientation']) # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
 
 
     # ----------- The control loop  -----------   
     for i in range(max_num_it):
-        
-        # Fetching necessary data 
-        z_force = get_lambda(sim)
-        h_e_hist[:,i] = get_h_e(sim)
-        x_history[:,i] = get_x(goal_ori)
-        v = get_v(x_history,i,T, numerically=True)
-
-        # Calculating the parameters that together make up the outputted torque 
-        f_lambda = calculate_f_lambda(f_d_ddot[i], f_d_dot[i], f_d[i], i, T, S_f ,C , K_Dlambda, K_Plambda, z_force, h_e_hist)
-        alpha_v= calculate_alpha_v(i,T,goal_ori, r_d_ddot[:,i], r_d_dot[:,i], p_d[:,i], K_Pr,K_Dr,v)
-        alpha = calculate_alpha(S_v,alpha_v,C,S_f,-f_lambda)
-
 
         time_per_iteration[i]=rospy.get_time()
+        # Fetching necessary data
+        z_force, h_e, p,x,jacobian,v = fetch_states(goal_ori, x_history,i,time_per_iteration,sim) #using rostopic-velocities if sim=False
+
+        h_e_hist[:,i] = h_e
+        x_history[:,i] = x
+        
+        
+        
+        
+
+        
+        # Calculating the parameters that together make up the outputted torque 
+        #f_lambda = calculate_f_lambda(f_d_ddot[i], f_d_dot[i], f_d[i], i, T, S_f ,C , K_Dlambda, K_Plambda, z_force, h_e_hist)
+        lambda_dot,lambda_a, lambda_b, lambda_c, f_lambda = get_f_lambda_subproducts(f_d_ddot[i], f_d_dot[i], f_d[i], i, time_per_iteration, S_f ,C , K_Dlambda, K_Plambda, z_force, h_e_hist,sim)
+        alpha_v= calculate_alpha_v(i,goal_ori, r_d_ddot[:,i], r_d_dot[:,i], p_d[:,i], K_Pr,K_Dr,v)
+        alpha = calculate_alpha(S_v,alpha_v,C,S_f,-f_lambda)
+
+        
+        
         # Apply the resulting torque to the robot 
-        perform_torque(alpha,sim)
-        rate.sleep()
+        
+        perform_torque(alpha,sim,jacobian,h_e,joint_names) # 1 to 50 ms
+
+        #rate.sleep()
 
 
         # Live printing to screen when the controller is running
@@ -560,16 +586,16 @@ if __name__ == "__main__":
             print('')
 
         # Collecting data for plotting
-        trajectory[:,i] = np.array([robot.endpoint_pose()['position'][0],robot.endpoint_pose()['position'][1],robot.endpoint_pose()['position'][2]])
-        ori_error[:,i] = (180/np.pi)*quatdiff_in_euler_radians(np.asarray(robot.endpoint_pose()['orientation']), goal_ori)
+        trajectory[:,i] = p
+        ori_error[:,i] = (180/np.pi)*x[2:]#quatdiff_in_euler_radians(np.asarray(robot.endpoint_pose()['orientation']), goal_ori)
         z_force_history[i] = z_force
         #joint_angle_list[:,i] = get_joint_angles()
         #joint_vel_list[:,i]= get_joint_velocities()
         #joint_vel_hist_II[:,i] = get_derivative_of_vector(joint_angle_list,i,T)
-        v_rostopic[:,i] = get_v(x_history,i,T, numerically=False, two_dim=False)
-        v_num[:,i] = get_v(x_history,i,T, numerically=True, two_dim=False)
-        f_lambda_history[0][i],f_lambda_history[1][i],f_lambda_history[2][i], f_lambda_history[3][i] = get_f_lambda_subproducts(f_d_ddot[i], f_d_dot[i], f_d[i], i, T, S_f ,C , K_Dlambda, K_Plambda, z_force, h_e_hist)
-        lambda_dot_history[i] = get_lambda_dot(get_S_inv(S_f,C),h_e_hist,i,T)
+        #v_rostopic[:,i] = get_v(x_history,i,T, numerically=False, two_dim=False)
+        #v_num[:,i] = get_v(x_history,i,T, numerically=True, two_dim=False)
+        f_lambda_history[0][i],f_lambda_history[1][i],f_lambda_history[2][i], f_lambda_history[3][i] = lambda_a, lambda_b, lambda_c, f_lambda
+        lambda_dot_history[i] = lambda_dot
 
 
         
@@ -584,5 +610,5 @@ if __name__ == "__main__":
 
 
     # Plotting the full result of the run 
-    plot_result(time_per_iteration,z_force_history,f_d,trajectory, p_d, ori_error, f_lambda_history, T, lambda_dot_history, f_d_dot, v_rostopic, v_num)
+    plot_result(time_per_iteration,z_force_history,f_d,trajectory, p_d, ori_error, f_lambda_history, T, lambda_dot_history, f_d_dot)#, v_rostopic, v_num)
 
