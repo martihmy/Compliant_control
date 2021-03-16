@@ -30,24 +30,19 @@ About the code/controller:
         used in the controller { get_x_dot(..., numerically = True) }
 
 3] You can now choose between perform_torque_Huang1992() and perform_torque_DeSchutter()
-    - DeSchutter's control-law offers geometrically consistent stiffness and is more computationally expensive
+    - DeSchutter's control-law offers geometrically consitent stiffness and is more computationally expensive
 
 4] The default desired motion- and force-trajectories are now made in a time-consistent matter, so that the PUBLISH RATE can be altered without messing up the desired behaviour. 
     The number of iterations is calculated as a function of the controller's control-cycle, T: (max_num_it = duration(=15 s) / T)
-
-5] IN THE FIRST LINE OF CODE BELOW "if __name__ == "__main__":" YOU HAVE TO SET SIM EQUAL TO "True" OR "False"
-            - if True: starting position = neutral
-            - if False: starting position = cartboard, Fz = (-) robot.endpoint_effort...
 """
 # --------- Constants -----------------------------
 
 #print(robot.joint_ordered_angles()) #Read the robot's joint-angles
-
-cartboard = {'panda_joint1': 1.5100039307153879, 'panda_joint2': 0.6066719992230666, 'panda_joint3': 0.024070900507747097, 'panda_joint4': -2.332000750114692, 'panda_joint5': -0.037555063873529436, 'panda_joint6': 2.9529732850154575, 'panda_joint7': 0.7686490028450895}
+#new_start = {'panda_joint1': 1.938963389436404, 'panda_joint2': 0.6757504724282993, 'panda_joint3': -0.43399745125475564, 'panda_joint4': -2.0375275954865573, 'panda_joint5': -0.05233040021194351, 'panda_joint6': 3.133254153457202, 'panda_joint7': 1.283328743909796}
 
 # Stiffness
 Kp = 30
-Kpz = 50 #initial value (adaptive)
+Kpz = 30 #initial value (adaptive)
 Ko = 900
 K = np.array([[Kp, 0, 0, 0, 0, 0],
                 [0, Kp, 0, 0, 0, 0],
@@ -79,8 +74,8 @@ P = np.identity(6)
 gamma = np.identity(18)
 
 #gamma_M = 12 
-gamma_B = 0.001*10 #2    # The damping's rate of adaptivity (high value = slow changes)
-gamma_K = 0.0005*10 #1    # The stiffness' rate of adaptivity (high value = slow changes)
+gamma_B = 0.001 #2    # The damping's rate of adaptivity (high value = slow changes)
+gamma_K = 0.0005 #1    # The stiffness' rate of adaptivity (high value = slow changes)
 #gamma[2,2] = gamma_M
 gamma[8,8] = gamma_B
 gamma[14,14] = gamma_K
@@ -119,7 +114,7 @@ def generate_desired_trajectory_express(iterations,T):
     
     if iterations > 175:
         a[2,0:50]=-0.00002/T**2
-        a[2,50:100]=0.00002/T**2
+        a[2,125:175]=0.00002/T**2
         
     if iterations > 3250:
         a[0,2250:2255]=0.00002/T**2
@@ -131,15 +126,15 @@ def generate_desired_trajectory_express(iterations,T):
     return a,v,p
 
 #3  Generate a (time-consistent) desired motion trajectory
-def generate_desired_trajectory_tc(iterations,T,move_in_x=False, move_down=True):
+def generate_desired_trajectory_tc(iterations,T,move_in_x=False):
     a = np.zeros((6,iterations))
     v = np.zeros((6,iterations))
     p = np.zeros((3,iterations))
     p[:,0] = get_p()
     
-    if move_down:
-        a[2,0:int(iterations/75)]=-0.25
-        a[2,int(iterations*2/75):int(iterations/25)]= 0.25      
+
+    a[2,0:int(iterations/75)]=-1.25
+    a[2,int(iterations*2/75):int(iterations/25)]= 1.25      
     if move_in_x:
         a[0,int(iterations*3/5):int(iterations*451/750)]=1.25
         a[0,int(iterations*649/750):int(iterations*13/15)]=-1.25
@@ -152,15 +147,24 @@ def generate_desired_trajectory_tc(iterations,T,move_in_x=False, move_down=True)
 
 """Functions for generating desired FORCE trajectories"""
 
-#1  Generate a desired force trajectory that takes offset into consideration
-def generate_F_d_robot(max_num_it,T,sim=False):
+#1  Generate a desired force trajectory 
+def generate_F_d(max_num_it,T):
     a = np.zeros((6,max_num_it))
     v = np.zeros((6,max_num_it))
     s = np.zeros((6,max_num_it))
-    s[2,0]= get_Fz(sim)
+    
     a[2,0:100] = 0.0005/T**2
     a[2,100:200] = - 0.0005/T**2
-
+    if max_num_it > 1100:
+        a[2,500:550] = 0.0002/T**2
+    if max_num_it >4001:
+        a[2,1500:1550]=-0.0002/T**2
+        it = 2000
+        while it <= 4000:
+            a[2,it]= (-9*(np.pi**2)*(T/4)**2*np.sin(it*T/4*2*np.pi+np.pi/2))/T**2
+            it+=1
+        a[2,4001]=0.0001/T**2
+    
     for i in range(max_num_it):
         if i>0:
             v[2,i]=v[2,i-1]+a[2,i-1]*T
@@ -218,22 +222,6 @@ def generate_F_d_tc(max_num_it,T):
 
     return s
 
-def generate_F_d_robot2(max_num_it,T,sim=False):
-    a = np.zeros(max_num_it)
-    v = np.zeros(max_num_it)
-    s = np.zeros(max_num_it)
-    s[0]= get_lambda(sim)
-    #a[0:100] = 0.0005/T**2
-    v[0]=0.05/T
-    a[50:150] = - 0.0005/T**2
-
-    for i in range(max_num_it):
-        if i>0:
-            v[i]=v[i-1]+a[i-1]*T
-            s[i]=s[i-1]+v[i-1]*T
-
-    return a,v,s
-
 # ------------ Helper functions --------------------------------
 
 
@@ -266,24 +254,11 @@ def get_W(inv = False):
 
 
 # Return the external forces (everything except for z-force is set to 0 due to offsets)
-def get_F_ext(sim,two_dim = False):
+def get_F_ext(two_dim = False):
     if two_dim == True:
-        if sim:
-            return np.array([0,0,robot.endpoint_effort()['force'][2],0,0,0]).reshape([6,1])
-        else:
-            return np.array([0,0,-robot.endpoint_effort()['force'][2],0,0,0]).reshape([6,1])
+        return np.array([0,0,robot.endpoint_effort()['force'][2],0,0,0]).reshape([6,1])
     else:
-        if sim:
-            return np.array([0,0,robot.endpoint_effort()['force'][2],0,0,0])
-        else:
-            return np.array([0,0,-robot.endpoint_effort()['force'][2],0,0,0])
-
-#Return only the force in z
-def get_Fz(sim=False):
-    if sim:
-        return robot.endpoint_effort()['force'][2]
-    else:
-        return -robot.endpoint_effort()['force'][2]
+        return np.array([0,0,robot.endpoint_effort()['force'][2],0,0,0])
 
 
 # Return the position and (relative) orientation 
@@ -362,8 +337,8 @@ def get_xi(goal_ori, p_d, x_dot, x_d_dot, x_d_ddot, v_history, i, T):
 
 
 # Calculate lambda_dot as in equation (50) in [Huang1992] 
-def get_lambda_dot(gamma,xi,K_v,P,F_d,sim):
-    return np.linalg.multi_dot([-np.linalg.inv(gamma),xi.T,np.linalg.inv(K_v),P,get_F_ext(sim,two_dim=True,)-F_d.reshape([6,1])])
+def get_lambda_dot(gamma,xi,K_v,P,F_d):
+    return np.linalg.multi_dot([-np.linalg.inv(gamma),xi.T,np.linalg.inv(K_v),P,get_F_ext(two_dim=True)-F_d.reshape([6,1])])
 
 
 # Return the updated (adapted) Inertia, Damping and Stiffness matrices.
@@ -373,17 +348,17 @@ def update_MBK_hat(lam,M,B,K):
     K_hat = K + np.diagflat(lam[12:18])
     #ensure_limits(1,5000,M_hat)
     ensure_limits(1,5000,B_hat)
-    ensure_limits(10,5000,K_hat)
+    ensure_limits(1,5000,K_hat)
     return M_hat, B_hat, K_hat
 
 
 # Calculate and perform the torque as in equation (10) in [Huang1992]
-def perform_torque_Huang1992(M, B, K, x_d_ddot, x_d_dot,x_dot, p_d, goal_ori,sim):
+def perform_torque_Huang1992(M, B, K, x_d_ddot, x_d_dot,x_dot, p_d, goal_ori):
     a = np.linalg.multi_dot([robot.jacobian().T,get_W(inv=True),np.linalg.inv(M)])
     b = np.array([np.dot(M,x_d_ddot)]).reshape([6,1]) + np.array([np.dot(B,get_x_dot_delta(x_d_dot,x_dot))]).reshape([6,1]) + np.array([np.dot(K,get_delta_x(goal_ori,p_d,two_dim = True))]).reshape([6,1])
     c = robot.coriolis_comp().reshape([7,1])
     d = (np.identity(6)-np.dot(get_W(inv=True),np.linalg.inv(M))).reshape([6,6])
-    total_torque = np.array([np.dot(a,b)]).reshape([7,1]) + c + np.array([np.linalg.multi_dot([robot.jacobian().T,d,get_F_ext(sim)])]).reshape([7,1])
+    total_torque = np.array([np.dot(a,b)]).reshape([7,1]) + c + np.array([np.linalg.multi_dot([robot.jacobian().T,d,get_F_ext()])]).reshape([7,1])
     robot.set_joint_torques(dict(list(zip(robot.joint_names(),total_torque))))
 
 
@@ -419,7 +394,7 @@ def get_h_delta(K_pt_dot,K_pt_ddot,p_delta,K_po_dot,quat_e):
     
     return np.array([np.append(f_delta_t.T,m_delta_t.T)]).T + np.array([np.append(null.T,m_delta_o.T)]).T
 
-def perform_torque_DeSchutter(M, B, K, x_d_ddot, x_d_dot,x_dot, p_d, Rot_d,sim): # must include Rot_d
+def perform_torque_DeSchutter(M, B, K, x_d_ddot, x_d_dot,x_dot, p_d, Rot_d): # must include Rot_d
     J = robot.jacobian()
     Rot_e = robot.endpoint_pose()['orientation_R']
     Rot_e_bigdim = from_three_to_six_dim(Rot_e)
@@ -440,7 +415,7 @@ def perform_torque_DeSchutter(M, B, K, x_d_ddot, x_d_dot,x_dot, p_d, Rot_d,sim):
     K_Po_dot = get_K_Po_dot(quat_n,quat_e,Rot_e,K[3:,3:])
 
     h_delta_e = np.array(np.dot(Rot_e_bigdim,get_h_delta(K_Pt_dot,K_Pt_ddot,p_delta,K_Po_dot,quat_e))).reshape([6,1])
-    h_e = get_F_ext(sim,two_dim=True)
+    h_e = get_F_ext(two_dim=True)
     h_e_e = np.array(np.dot(Rot_e_bigdim,h_e))
 
     a_d_e = np.dot(Rot_e_bigdim,x_d_ddot).reshape([6,1])
@@ -454,30 +429,20 @@ def perform_torque_DeSchutter(M, B, K, x_d_ddot, x_d_dot,x_dot, p_d, Rot_d,sim):
 """
 # -------------- Plotting ------------------------
 
-def plot_result(time_per_iteration,v_num, v,p,p_d, delta_x, F_ext_raw,F_d_raw, z_dynamics,M,B,K, T):
+def plot_result(v_num, v,p,p_d, delta_x, F_ext,F_d, z_dynamics,M,B,K, T):
 
     time_array = np.arange(len(p[0]))*T
-    Fz_ext_raw = F_ext_raw[2]#remove offset
-    Fz_ext = Fz_ext_raw -Fz_ext_raw[0]
-    Fz_d_raw = F_d_raw[2] #remove offset
-    Fz_d = Fz_d_raw - Fz_d_raw[0]
+    
 
-    adjusted_time_per_iteration = time_per_iteration - time_per_iteration[0]
-    new_list = np.zeros(len(p[0]))
-    new_list[0]=adjusted_time_per_iteration[0]
-    for i in range(len(adjusted_time_per_iteration)):
-        if i >0:
-            new_list[i] = adjusted_time_per_iteration[i]-adjusted_time_per_iteration[i-1]
-
-    plt.subplot(231)
+    plt.subplot(211)
     plt.title("External force")
-    plt.plot(time_array, Fz_ext, label="force z [N]")
-    plt.plot(time_array, Fz_d, label="desired force z [N]", color='b',linestyle='dashed')
+    plt.plot(time_array, F_ext[2], label="force z [N]")
+    plt.plot(time_array, F_d[2], label="desired force z [N]", color='b',linestyle='dashed')
     plt.xlabel("Real time [s]")
     plt.legend()
 
 
-    plt.subplot(232)
+    plt.subplot(212)
     plt.title("Position")
     plt.plot(time_array, p[0,:], label = "true x [m]")
     plt.plot(time_array, p[1,:], label = "true y [m]")
@@ -489,7 +454,7 @@ def plot_result(time_per_iteration,v_num, v,p,p_d, delta_x, F_ext_raw,F_d_raw, z
     plt.xlabel("Real time [s]")
     plt.legend()
     
-    
+    """
     plt.subplot(233)
     plt.title("Orientation error in Euler")
     plt.plot(time_array, delta_x[3]*(180/np.pi), label = "error  Ori_x [degrees]")
@@ -521,12 +486,6 @@ def plot_result(time_per_iteration,v_num, v,p,p_d, delta_x, F_ext_raw,F_d_raw, z
     plt.legend()
 
     plt.subplot(236)
-    plt.title("Time per iteration")
-    plt.plot(new_list, label = "time per iteration")
-    plt.xlabel("iterations")
-    plt.legend()
-    """
-    plt.subplot(236)
     plt.title("numerically calculated velocity")
     plt.plot(time_array, v_num[0], label = "vel x")
     plt.plot(time_array, v_num[1], label = "vel y")
@@ -536,32 +495,28 @@ def plot_result(time_per_iteration,v_num, v,p,p_d, delta_x, F_ext_raw,F_d_raw, z
     plt.plot(time_array, v_num[5], label = "ang z")
     plt.xlabel("Real time [s]")
     plt.legend()
-    """F
+    """
 
     plt.show()
 
 
-# move to neutral or alternative starting position (Dependent on sim/not sim)
-def move_to_start(alternative_position, sim):
-    if sim:
-        robot.move_to_neutral()
-    else:
-        robot.move_to_joint_positions(alternative_position)
+
 
 
 if __name__ == "__main__":
 
     # ---------- Initialization -------------------
-    sim = True
     rospy.init_node("impedance_control")
     robot = PandaArm()
     publish_rate = 250
     rate = rospy.Rate(publish_rate)
     T = 0.001*(1000/publish_rate)
     max_num_it = int(duration /T)
-    move_to_start(cartboard,sim)
 
+    #robot.move_to_joint_positions(new_start)
+    robot.move_to_neutral() 
 
+    
     # List used to contain data needed for calculation of the torque output 
     lam = np.zeros(18)
     v_history = np.zeros((6,max_num_it))
@@ -574,13 +529,12 @@ if __name__ == "__main__":
     F_ext_history = np.zeros((6,max_num_it))
     z_dynamics_history = np.zeros((3,max_num_it))
 
-    time_per_iteration = np.zeros(max_num_it)
 
     # Specify the desired behaviour of the robot
     x_d_ddot, x_d_dot, p_d = generate_desired_trajectory_tc(max_num_it,T,move_in_x = True)
     goal_ori = np.asarray(robot.endpoint_pose()['orientation']) # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
     Rot_d = robot.endpoint_pose()['orientation_R'] # used by the DeSchutter implementation
-    F_d = generate_F_d_robot2(max_num_it,T,sim)
+    F_d = generate_F_d_tc(max_num_it,T)
 
 
     # ----------- The control loop  -----------   
@@ -589,23 +543,21 @@ if __name__ == "__main__":
         p_history[:,i] = get_p()
         x_history[:,i] = get_x(goal_ori)
         delta_x_history[:,i] = get_delta_x(goal_ori,p_d[:,i])
-        F_ext_history[:,i] = get_F_ext(sim)
+        F_ext_history[:,i] = get_F_ext()
         x_dot = get_x_dot(x_history,i,T, numerically=False) #chose 'numerically' either 'True' or 'False'
         v_history_num[:,i] = get_x_dot(x_history,i,T, numerically=True) # only for plotting 
         v_history[:,i] = get_x_dot(x_history,i,T) # for calculating error in acceleration 
 
         # adapt M,B and K
         xi = get_xi(goal_ori, p_d[:,i],x_dot, x_d_dot[:,i], x_d_ddot[:,i], v_history, i, T)        
-        lam = lam.reshape([18,1]) + get_lambda_dot(gamma,xi,K_v,P,F_d[:,i],sim).reshape([18,1])*T
+        lam = lam.reshape([18,1]) + get_lambda_dot(gamma,xi,K_v,P,F_d[:,i]).reshape([18,1])*T
         M_hat,B_hat,K_hat = update_MBK_hat(lam,M,B,K)
 
-
-        time_per_iteration[i]=rospy.get_time()
         # Apply the resulting torque to the robot
         """CHOOSE ONE OF THE TWO CONTROLLERS BELOW"""
-        #perform_torque_Huang1992(M_hat, B_hat, K_hat, x_d_ddot[:,i], x_d_dot[:,i],x_dot, p_d[:,i], goal_ori,sim)
-        perform_torque_DeSchutter(M_hat, B_hat, K_hat, x_d_ddot[:,i], x_d_dot[:,i],x_dot, p_d[:,i], Rot_d,sim)
-        #rate.sleep()
+        perform_torque_Huang1992(M_hat, B_hat, K_hat, x_d_ddot[:,i], x_d_dot[:,i],x_dot, p_d[:,i], goal_ori)
+        #perform_torque_DeSchutter(M_hat, B_hat, K_hat, x_d_ddot[:,i], x_d_dot[:,i],x_dot, p_d[:,i], Rot_d)
+        rate.sleep()
 
 
         # plotting and printing
@@ -630,7 +582,7 @@ if __name__ == "__main__":
     np.save('VIC_adaptive_gains.npy',z_dynamics_history)
     """
 
-    plot_result(time_per_iteration,v_history_num,v_history, p_history, p_d, delta_x_history, F_ext_history, F_d, z_dynamics_history,M,B,K, T)
+    plot_result(v_history_num,v_history, p_history, p_d, delta_x_history, F_ext_history, F_d, z_dynamics_history,M,B,K, T)
 
 
 

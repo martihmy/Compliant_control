@@ -525,10 +525,10 @@ def move_to_start(alternative_position, sim):
 if __name__ == "__main__":
 
     # ---------- Initialization -------------------
-    sim = False
+    sim = True
     rospy.init_node("impedance_control")
     robot = PandaArm()
-    publish_rate = 250
+    publish_rate = 50#250
     rate = rospy.Rate(publish_rate)
     T = 0.001*(1000/publish_rate)
     max_num_it = int(duration /T)
