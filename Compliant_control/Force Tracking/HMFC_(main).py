@@ -123,8 +123,8 @@ def generate_desired_trajectory_tc(max_num_it,T,move_in_x=False):
     s[:,0]= get_p()
 
     if move_in_x:
-        a[0,int(max_num_it*6/10):int(max_num_it*7/10)]=0.00005/T**2
-        a[0,int(max_num_it*7/10):int(max_num_it*8/10)]=-0.00005/T**2
+        a[0,int(max_num_it*6/10):int(max_num_it*7/10)]=0.05
+        a[0,int(max_num_it*7/10):int(max_num_it*8/10)]=-0.05
 
     for i in range(max_num_it):
         if i>0:
@@ -425,7 +425,6 @@ def perform_torque(alpha,sim,jacobian,h_e,joint_names):
 
 def plot_result(time_per_iteration, fz_raw, fz_d_raw ,p, p_d, ori_error, f_lambda,T, lambda_dot,f_d_dot):#, v_rostopic, v_num):
 
-    time_array = np.arange(len(p[0]))*T
     fz = fz_raw - fz_raw[0] #remove offset
     fz_d = fz_d_raw - fz_raw[0] #remove offset
 

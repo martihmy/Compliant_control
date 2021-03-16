@@ -80,8 +80,8 @@ def generate_desired_trajectory_tc(iterations,T,move_in_x=False, move_down=False
         a[2,int(max_num_it/75):int(max_num_it*2/75)]=0.625
         
     if move_in_x:
-        a[0,int(max_num_it*3/5):int(max_num_it*451/750)]=1.25
-        a[0,int(max_num_it*649/750):int(max_num_it*13/15)]=-1.25
+        a[0,int(max_num_it*6/10):int(max_num_it*7/10)]=0.05
+        a[0,int(max_num_it*7/10):int(max_num_it*8/10)]=-0.05
     for i in range(max_num_it):
         if i>0:
             v[:,i]=v[:,i-1]+a[:,i-1]*T
