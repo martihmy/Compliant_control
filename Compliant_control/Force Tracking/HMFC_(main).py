@@ -71,7 +71,7 @@ C = np.linalg.inv(K)
 # Full run = 7500 iterations 
 
 K_Plambda = 45 #force gains
-K_Dlambda = K_Plambda*0.002 #K_Plambda*0.633 #random
+K_Dlambda = K_Plambda*0.001 #K_Plambda*0.633 #random
 
 #Position control dynamics:
 Pp = 60 #proportional gain for position (x and y)
@@ -135,14 +135,14 @@ def generate_desired_trajectory_tc(max_num_it,T,move_in_x=False):
 
 """Functions for generating desired FORCE trajectories"""
 
-#1  Generate a desired force trajectory that takes offset into consideration
-def generate_F_d_robot(max_num_it,T,sim=False):
+#1  Generate a SMOOTH desired force trajectory that takes offset into consideration [STABLE]
+def generate_Fd_smooth(max_num_it,T,sim=False):
     a = np.zeros(max_num_it)
     v = np.zeros(max_num_it)
     s = np.zeros(max_num_it)
     s[0]= get_lambda(sim)
-    a[0:100] = 0.0005/T**2
-    a[100:200] = - 0.0005/T**2
+    a[0:max_num_it/15] = 5
+    a[max_num_it/15:2*max_num_it/15] = - 5
 
     for i in range(max_num_it):
         if i>0:
@@ -151,33 +151,10 @@ def generate_F_d_robot(max_num_it,T,sim=False):
 
     return a,v,s
 
-#2 Generate some desired force trajectory
-def generate_F_d(max_num_it,T): 
-    a = np.zeros(max_num_it)
-    v = np.zeros(max_num_it)
-    s = np.zeros(max_num_it)
-    a[0:100] = 0.0005/T**2
-    a[100:200] = - 0.0005/T**2
-    if max_num_it > 1100:
-        a[500:550] = 0.0002/T**2
-    if max_num_it >4001:
-        a[1500:1550]=-0.0002/T**2
-        it = 2000
-        while it <= 4000:
-            a[it]= (-9*(np.pi**2)*(T/4)**2*np.sin(it*T/4*2*np.pi+np.pi/2))/T**2
-            it+=1
 
-        a[4001]=0.0001/T**2
 
-    for i in range(max_num_it):
-        if i>0:
-            v[i]=v[i-1]+a[i-1]*T
-            s[i]=s[i-1]+v[i-1]*T
-
-    return a,v,s
-
-#3 Generate a (time-consistent) desired force trajectory 
-def generate_F_d_tc(max_num_it,T): 
+#3 Generate an advanced (time-consistent) desired force trajectory 
+def generate_Fd_advanced(max_num_it,T): 
     a = np.zeros(max_num_it)
     v = np.zeros(max_num_it)
     s = np.zeros(max_num_it)
@@ -201,14 +178,14 @@ def generate_F_d_tc(max_num_it,T):
 
     return a,v,s
 
-def generate_F_d_robot2(max_num_it,T,sim=False):
+# generate a STEEP desired force trajectory [STABLE]
+def generate_Fd_steep(max_num_it,T,sim=False):
     a = np.zeros(max_num_it)
     v = np.zeros(max_num_it)
     s = np.zeros(max_num_it)
     s[0]= get_lambda(sim)
-    #a[0:100] = 0.0005/T**2
-    v[0]=5*0.05/T
-    a[50:100] = - 10*0.0005/T**2
+    v[0]=2.5
+    a[max_num_it/15:3*max_num_it/15] = - 1.25
 
     for i in range(max_num_it):
         if i>0:
@@ -217,7 +194,8 @@ def generate_F_d_robot2(max_num_it,T,sim=False):
 
     return a,v,s
 
-def generate_F_d_robot3(max_num_it,T,sim=False):
+# Generate a constant desired force [STABLE]
+def generate_Fd_constant(max_num_it,T,sim=False):
     a = np.zeros(max_num_it)
     v = np.zeros(max_num_it)
     s = np.zeros(max_num_it)
@@ -230,14 +208,16 @@ def generate_F_d_robot3(max_num_it,T,sim=False):
 
     return a,v,s
 
-def generate_F_d_robot4(max_num_it,T,sim=False):
+
+# Generate a HMFC-friendly force trajecotry [STABLE]    
+def generate_Fd_jump_and_steep(max_num_it,T,sim=False):
     a = np.zeros(max_num_it)
     v = np.zeros(max_num_it)
     s = np.zeros(max_num_it)
     s[0]= get_lambda(sim)+2.5
    #a[0:10] = 0.005/T**2
-    v[0]=0.05/T
-    a[20:70] = -0.001/T**2
+    v[0]=2
+    a[max_num_it/15:2*max_num_it/15] = -2
 
     for i in range(max_num_it):
         if i>0:
@@ -326,7 +306,7 @@ def construct_h_e(Fz):
 # Fetch a simplified, less noisy estimate of the derivative of the external force in z 
 def get_lambda_dot(S_f_inv,h_e_hist,i,time_per_iteration):
     h_e_dot = get_derivative_of_vector(h_e_hist,i,time_per_iteration)
-    cap = 20#50
+    cap = 50
     if abs(h_e_dot[2]) > cap:
         h_e_dot[2] = np.sign(h_e_dot[2])*cap
     return np.dot(S_f_inv,h_e_dot)
@@ -389,7 +369,7 @@ def get_f_lambda_subproducts(f_d_ddot, f_d_dot, f_d, i,time_per_iteration, S_f,C
     lambda_a = f_d_ddot
     lambda_b = np.array(np.dot(K_Dlambda,(f_d_dot-lambda_dot)))
     lambda_c = np.dot(K_Plambda,(f_d-z_force))
-    return lambda_dot, lambda_a, lambda_b, lambda_c, max(lambda_a + lambda_b + lambda_c,0)
+    return lambda_dot, lambda_a, lambda_b, lambda_c, (lambda_a + lambda_b + lambda_c)
 
     """def get_f_lambda_subproducts(f_d_ddot, f_d_dot, f_d, i,T, S_f,C,K_Dlambda,K_Plambda, z_force,h_e_hist):
     S_f_inv = get_S_inv(S_f,C)
@@ -423,7 +403,7 @@ def perform_torque(alpha,sim,jacobian,h_e,joint_names):
 
 # Plot the result of the run 
 
-def plot_result(time_per_iteration, fz_raw, fz_d_raw ,p, p_d, ori_error, f_lambda,T, lambda_dot,f_d_dot):#, v_rostopic, v_num):
+def plot_result(time_per_iteration, fz_raw, fz_d_raw ,p, p_d, ori_error, f_lambda,T, lambda_dot,f_d_dot,publish_rate):#, v_rostopic, v_num):
 
     fz = fz_raw - fz_raw[0] #remove offset
     fz_d = fz_d_raw - fz_raw[0] #remove offset
@@ -431,7 +411,7 @@ def plot_result(time_per_iteration, fz_raw, fz_d_raw ,p, p_d, ori_error, f_lambd
 
     adjusted_time_per_iteration = time_per_iteration - time_per_iteration[0]
     new_list = np.zeros(len(p[0]))
-    new_list[0]=adjusted_time_per_iteration[0]
+    new_list[0]=1/float(publish_rate) #adjusted_time_per_iteration[0]
     for i in range(len(adjusted_time_per_iteration)):
         if i >0:
             new_list[i] = adjusted_time_per_iteration[i]-adjusted_time_per_iteration[i-1]
@@ -483,6 +463,7 @@ def plot_result(time_per_iteration, fz_raw, fz_d_raw ,p, p_d, ori_error, f_lambd
     plt.subplot(236)
     plt.title("Time per iteration")
     plt.plot(new_list, label = "time per iteration")
+    plt.axhline(y=1/float(publish_rate), label = 'desired time-step', color='C1', linestyle = 'dashed')
     plt.xlabel("iterations")
     plt.legend()
     """
@@ -557,7 +538,7 @@ if __name__ == "__main__":
 
     # Specify the desired behaviour of the robot
     r_d_ddot, r_d_dot, p_d = generate_desired_trajectory_tc(max_num_it,T, move_in_x=True)
-    f_d_ddot,f_d_dot, f_d = generate_F_d_robot4(max_num_it,T,sim)
+    f_d_ddot,f_d_dot, f_d = generate_Fd_jump_and_steep(max_num_it,T,sim)
     goal_ori = np.asarray(robot.endpoint_pose()['orientation']) # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
 
 
@@ -631,5 +612,5 @@ if __name__ == "__main__":
 
 
     # Plotting the full result of the run 
-    plot_result(time_per_iteration,z_force_history,f_d,trajectory, p_d, ori_error, f_lambda_history, T, lambda_dot_history, f_d_dot)#, v_rostopic, v_num)
+    plot_result(time_per_iteration,z_force_history,f_d,trajectory, p_d, ori_error, f_lambda_history, T, lambda_dot_history, f_d_dot,publish_rate)#, v_rostopic, v_num)
 

@@ -196,7 +196,7 @@ def generate_F_d_express(max_num_it,T):
     return s
 
 #3  Generate a (time-consistent) desired force trajectory 
-def generate_F_d_tc(max_num_it,T):
+def generate_Fd_advanced(max_num_it,T):
     a = np.zeros((6,max_num_it))
     v = np.zeros((6,max_num_it))
     s = np.zeros((6,max_num_it))                                                                                                                                                          
@@ -220,14 +220,14 @@ def generate_F_d_tc(max_num_it,T):
 
     return s
 
-def generate_F_d_robot2(max_num_it,T,sim=False):
+# generate a STEEP desired force trajectory [STABLE]
+def generate_Fd_steep(max_num_it,T,sim=False):
     a = np.zeros((6,max_num_it))
     v = np.zeros((6,max_num_it))
     s = np.zeros((6,max_num_it))
     s[2,0]= get_Fz(sim)
-    #a[2,0:100] = 0.0005/T**2
-    v[2,0]=0.05/T
-    a[2,50:150] = - 0.0005/T**2
+    v[2,0]=2.5
+    a[2,max_num_it/15:3*max_num_it/15] = - 1.25
 
     for i in range(max_num_it):
         if i>0:
@@ -586,7 +586,7 @@ if __name__ == "__main__":
     # ---------- Initialization -------------------
     sim = True
     rospy.init_node("impedance_control")
-    robot = PandaArm()
+    robot = ArmInterface() #PandaArm()
     joint_names = robot.joint_names()
     publish_rate = 50
     rate = rospy.Rate(publish_rate)
@@ -614,7 +614,7 @@ if __name__ == "__main__":
     x_d_ddot, x_d_dot, p_d = generate_desired_trajectory_tc(max_num_it,T,move_in_x = True)
     goal_ori = np.asarray(robot.endpoint_pose()['orientation']) # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
     Rot_d = robot.endpoint_pose()['orientation_R'] # used by the DeSchutter implementation
-    F_d = generate_F_d_robot2(max_num_it,T,sim)
+    F_d = generate_Fd_steep(max_num_it,T,sim)
 
     
     # ----------- The control loop  -----------   
@@ -640,7 +640,7 @@ if __name__ == "__main__":
         """CHOOSE ONE OF THE TWO CONTROLLERS BELOW"""
         perform_torque_Huang1992(M_hat, B_hat, K_hat, x_d_ddot[:,i], x_d_dot[:,i],x, x_dot, p_d[:,i],F_ext_2D, jacobian, robot_inertia,joint_names)
         #perform_torque_DeSchutter(M_hat, B_hat, K_hat, x_d_ddot[:,i], x_d_dot[:,i],x_dot, delta_x,p_d[:,i], Rot_e, Rot_d,F_ext_2D, jacobian, robot_inertia,joint_names, sim)
-        rate.sleep()
+        
 
 
         # plotting and printing
@@ -659,6 +659,8 @@ if __name__ == "__main__":
             print(i,'/',max_num_it,' = ',T*i,' [s]   ) Force in z: ',F_ext_history[2,i])
             print(K_hat[2][2])
             print('')
+        
+        rate.sleep()
 
     #Uncomment the block below to save plotting-data 
     """

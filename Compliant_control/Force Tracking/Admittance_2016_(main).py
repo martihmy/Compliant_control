@@ -92,14 +92,14 @@ def generate_desired_trajectory_tc(iterations,T,move_in_x=False, move_down=False
 
 """Functions for generating desired FORCE trajectories"""
 
-#1  Generate a desired force-trajectory (which takes offset into consideration)
-def generate_F_d_robot(max_num_it,T,sim=False):
+#1  Generate a SMOOTH desired force-trajectory [STABLE]
+def generate_Fd_smooth(max_num_it,T,sim=False):
     a = np.zeros((6,max_num_it))
     v = np.zeros((6,max_num_it))
     s = np.zeros((6,max_num_it))
     s[2,0]= get_Fz(sim)
-    a[2,0:100] = 0.0005/T**2
-    a[2,100:200] = - 0.0005/T**2
+    a[2,0:max_num_it/15] = 5
+    a[2,max_num_it/15:2*max_num_it/15] = - 5
 
     for i in range(max_num_it):
         if i>0:
@@ -109,8 +109,8 @@ def generate_F_d_robot(max_num_it,T,sim=False):
     return s
 
 
-#2  Generate a (time-consistent) desired force trajectory 
-def generate_F_d_tc(max_num_it,T):
+#2  Generate an ADVANCED (time-consistent) desired force trajectory 
+def generate_Fd_advanced(max_num_it,T):
     a = np.zeros((6,max_num_it))
     v = np.zeros((6,max_num_it))
     s = np.zeros((6,max_num_it))
@@ -134,12 +134,12 @@ def generate_F_d_tc(max_num_it,T):
 
     return s
 
-# Generate a constant desired force
+# Generate a constant desired force [STABLE]
 def generate_F_d_constant(max_num_it,T):
     a = np.zeros((6,max_num_it))
     v = np.zeros((6,max_num_it))
     s = np.zeros((6,max_num_it))
-    s[2,0]=3
+    s[2,0]= get_Fz(sim)+3
     for i in range(max_num_it):
         if i>0:
             v[2,i]=v[2,i-1]+a[2,i-1]*T
@@ -222,16 +222,16 @@ def perform_joint_position_control(x_d,E,ori):
 
 # -------------- Plotting ------------------------
 
-def plot_result(time_per_iteration,force_z_raw,x_c,pos,F_d_raw,x_d,ori_error,T):
+def plot_result(time_per_iteration,force_z_raw,x_c,pos,F_d_raw,x_d,ori_error,T,publish_rate):
 
-    time_array = np.arange(len(force_z_raw))*T
+    
     force_z = force_z_raw - force_z_raw[0] #remove offset
     Fz_d_raw = F_d_raw[2]
     Fz_d = Fz_d_raw- Fz_d_raw[0] #remove offset
     
     adjusted_time_per_iteration = time_per_iteration - time_per_iteration[0]
     new_list = np.zeros(len(force_z_raw))
-    new_list[0]=adjusted_time_per_iteration[0]
+    new_list[0]=T#adjusted_time_per_iteration[0]
     for i in range(len(adjusted_time_per_iteration)):
         if i >0:
             new_list[i] = adjusted_time_per_iteration[i]-adjusted_time_per_iteration[i-1]
@@ -267,6 +267,7 @@ def plot_result(time_per_iteration,force_z_raw,x_c,pos,F_d_raw,x_d,ori_error,T):
     plt.subplot(224)
     plt.title("Time per iteration")
     plt.plot(new_list, label = "time per iteration")
+    plt.axhline(y=1/float(publish_rate), label = 'desired time-step', color='C1', linestyle = 'dashed')
     plt.xlabel("iterations")
     plt.legend()
     """
@@ -333,7 +334,7 @@ if __name__ == "__main__":
     # Specify the desired behaviour of the robot
     goal_ori = robot.endpoint_pose()['orientation'] # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
     x_d = generate_desired_trajectory_tc(max_num_it,T,move_in_x=True)
-    F_d = generate_F_d_robot(max_num_it,T,sim)
+    F_d = generate_Fd_smooth(max_num_it,T,sim)
 
     #Filter-parameters
     b = signal.firwin(3, 0.001)
@@ -356,7 +357,7 @@ if __name__ == "__main__":
         """position control """
         perform_joint_position_control(x_d[:,i],E,goal_ori)
         
-        rate.sleep()
+        #rate.sleep()
         
         
         # Live printing to screen when the controller is running
@@ -368,7 +369,7 @@ if __name__ == "__main__":
         x_c_history[:,i] = x_d[:,i] + E
         x_history[:,i] = robot.endpoint_pose()['position']
         orientation_error_history[:,i] = quatdiff_in_euler_degrees(robot.endpoint_pose()['orientation'], goal_ori)
-
+        rate.sleep()
     
     #Uncomment the block below to save plotting-data 
     """
@@ -382,5 +383,5 @@ if __name__ == "__main__":
 
 
     # Plotting the full result of the run         
-    plot_result(time_per_iteration, Fz_history,x_c_history,x_history,F_d,x_d,orientation_error_history,T)
+    plot_result(time_per_iteration, Fz_history,x_c_history,x_history,F_d,x_d,orientation_error_history,T,publish_rate)
 
