@@ -578,7 +578,7 @@ if __name__ == "__main__":
         
         # Apply the resulting torque to the robot 
         perform_torque(alpha,sim,jacobian,h_e,joint_names)
-        rate.sleep()
+        
 
 
         # Live printing to screen when the controller is running
@@ -598,6 +598,7 @@ if __name__ == "__main__":
         #v_num[:,i] = get_v(x_history,i,T, numerically=True, two_dim=False)
         f_lambda_history[0][i],f_lambda_history[1][i],f_lambda_history[2][i], f_lambda_history[3][i] =  lambda_a, lambda_b, lambda_c, f_lambda
         lambda_dot_history[i] = lambda_dot
+        rate.sleep()
 
 
         
