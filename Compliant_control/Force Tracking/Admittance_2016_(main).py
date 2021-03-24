@@ -12,6 +12,7 @@ from panda_robot import PandaArm
 import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation
 from scipy import signal
+import matplotlib.transforms as transforms
 
 np.set_printoptions(precision=2)
 
@@ -196,7 +197,7 @@ def update_E_history(E_history, E):
         E_history[i][0] = E[i]
 
 # Calculate E (as in 'step 8' of 'algorithm 2' in Lahr2016 [Understanding the implementation of Impedance Control in Industrial Robots] )
-def calculate_E(time_per_iteration,E_history, F_e_history,M = 1*np.array([1, 1, 1]),B =100*3*np.array([1, 1, 1]),K= 100*np.array([1, 1, 1])):
+def calculate_E(time_per_iteration,E_history, F_e_history,M = 5*np.array([1, 1, 1]),B =40*np.array([1, 1, 1]),K= 50*np.array([1, 1, 1])):
     if i < 1:
         return np.array([0,0,0])
     T = time_per_iteration[i]-time_per_iteration[i-1]
@@ -205,28 +206,15 @@ def calculate_E(time_per_iteration,E_history, F_e_history,M = 1*np.array([1, 1, 
     x_z = (T**2 * F_e_history[2][0] + 2* T**2 * F_e_history[2][1]+ T**2 * F_e_history[2][2]-(2*K[2]*T**2-8*M[2])*E_history[2][0]-(4*M[2] -2*B[2]*T+K[2]*T**2)*E_history[2][1])/(4*M[2]+2*B[2]*T+K[2]*T**2)
     return np.array([x_x,x_y,x_z]) 
 
-# Perform position control with the compliant position (x_c = x_d + E) as input
-def perform_joint_position_control(x_d,E,ori):
-    x_c = x_d + E
-    desired_joint_angles = robot.inverse_kinematics(x_c,ori=ori)[1]
-    joint_angles = robot.joint_ordered_angles()
-
-    robot.exec_position_cmd(desired_joint_angles)
-    return joint_angles, desired_joint_angles
-
-
-
-
-
-
-
 
 
 
 # -------------- Plotting ------------------------
 
-def plot_result(time_per_iteration,force_z_raw,x_c,pos,F_d_raw,x_d,ori_error,T,publish_rate,joints,joints_d):
-
+def plot_result(time_per_iteration,force_z_raw,x_c,pos,F_d_raw,x_d,T,publish_rate,t_states_list,t_perform_admittance_list):
+    print('')
+    print('Constructing plot...')
+    print('')
     
     force_z = force_z_raw - force_z_raw[0] #remove offset
     Fz_d_raw = F_d_raw[2]
@@ -239,24 +227,24 @@ def plot_result(time_per_iteration,force_z_raw,x_c,pos,F_d_raw,x_d,ori_error,T,p
         if i >0:
             new_list[i] = adjusted_time_per_iteration[i]-adjusted_time_per_iteration[i-1]
             
-
-
-    plt.subplot(221)
+    
+    
+    plt.subplot(231)
     plt.title("External force")
     plt.plot(adjusted_time_per_iteration, force_z, label="force z [N]")
     plt.plot(adjusted_time_per_iteration, Fz_d, label = " desired z-force [N]", color='b',linestyle='dashed')
     plt.xlabel("Real time [s]")
     plt.legend()
 
-    plt.subplot(222)
+    plt.subplot(232)
     plt.title("Positional adjustments in z")
     plt.plot(adjusted_time_per_iteration, pos[2,:], label = "true  z [m]")
     plt.plot(adjusted_time_per_iteration, x_d[2,:], label = "desired z [m]",linestyle='dashed')
     plt.plot(adjusted_time_per_iteration, x_c[2,:], label = "compliant z [m]",linestyle='dotted')
     plt.xlabel("Real time [s]")
     plt.legend()
-
-    plt.subplot(223)
+    
+    plt.subplot(233)
     plt.title("position in x and y")
     plt.plot(adjusted_time_per_iteration, pos[0,:], label = "true x [m]")
     plt.plot(adjusted_time_per_iteration, pos[1,:], label = "true y [m]")
@@ -264,48 +252,32 @@ def plot_result(time_per_iteration,force_z_raw,x_c,pos,F_d_raw,x_d,ori_error,T,p
     plt.plot(adjusted_time_per_iteration, x_d[1,:], label = "desired y [m]", color='C1',linestyle='dashed')
     plt.xlabel("Real time [s]")
     plt.legend()
-
-
     
-    plt.subplot(224)
+    
+    plt.subplot(234)
     plt.title("Time per iteration")
     plt.plot(new_list, label = "time per iteration")
     plt.axhline(y=1/float(publish_rate), label = 'desired time-step', color='C1', linestyle = 'dashed')
+    #plt.axhline(np.mean(new_list), label = 'mean', color='red', linestyle = 'dashed')
     plt.xlabel("iterations")
     plt.legend()
-    """
-
-
-    plt.subplot(224)
-    plt.title("joint positions")
-    plt.plot(adjusted_time_per_iteration, joints[0], label = "0")
-    plt.plot(adjusted_time_per_iteration, joints[1], label = "1")
-    plt.plot(adjusted_time_per_iteration, joints[2], label = "2")
-    plt.plot(adjusted_time_per_iteration, joints[3], label = "3")
-    plt.plot(adjusted_time_per_iteration, joints[4], label = "4")
-    plt.plot(adjusted_time_per_iteration, joints[5], label = "5")
-    plt.plot(adjusted_time_per_iteration, joints[6], label = "6")
-    plt.plot(adjusted_time_per_iteration, joints_d[0], label = "0d", color='b',linestyle='dashed')
-    plt.plot(adjusted_time_per_iteration, joints_d[1], label = "1d", color='C1',linestyle='dashed')
-    plt.plot(adjusted_time_per_iteration, joints_d[2], label = "2d", color='C2',linestyle='dashed')
-    plt.plot(adjusted_time_per_iteration, joints_d[3], label = "3d", color='C3',linestyle='dashed')
-    plt.plot(adjusted_time_per_iteration, joints_d[4], label = "4d", color='C4',linestyle='dashed')
-    plt.plot(adjusted_time_per_iteration, joints_d[5], label = "5d", color='C5',linestyle='dashed')
-    plt.plot(adjusted_time_per_iteration, joints_d[6], label = "6d", color='C6',linestyle='dashed')
-    plt.xlabel("Real time [s]")
+    
+    plt.subplot(235)
+    plt.title("Time used per iteration")
+    plt.plot(t_states_list, label = "fetch states")
+    plt.axhline(np.mean(t_states_list), label = 'mean', color='red', linestyle = 'dashed')
+    plt.xlabel("iterations")
     plt.legend()
-    """
-    """
-    plt.subplot(224)
-    plt.title("Error in orientation")
-    plt.plot(adjusted_time_per_iteration, ori_error[0,:], label = "true  Ori_x [degrees]")
-    plt.plot(adjusted_time_per_iteration, ori_error[1,:], label = "true  Ori_y [degrees]")
-    plt.plot(adjusted_time_per_iteration, ori_error[2,:], label = "true  Ori_z [degrees]")
-    plt.xlabel("Real time [s]")
+
+    plt.subplot(236)
+    plt.title("Time used per iteration")
+    plt.plot(t_perform_admittance_list, label = "perform_command")
+    plt.axhline(np.mean(t_perform_admittance_list), label = 'mean', color='red', linestyle = 'dashed')
+    plt.xlabel("iterations")
     plt.legend()
-    """
     
     plt.show()
+
 
 # move to neutral or alternative starting position (Dependent on sim/not sim)
 def move_to_start(alternative_position, sim):
@@ -314,11 +286,15 @@ def move_to_start(alternative_position, sim):
     else:
         robot.move_to_joint_positions(alternative_position)
 
+
 def fetch_states(sim):
-    x = robot.endpoint_pose()['position']
-    ori = robot.endpoint_pose()['orientation']
-    Fz = get_Fz(sim)
-    return x,ori,Fz
+    x,Fz_raw = robot.fetch_states_admittance()
+    if sim:
+        Fz = Fz_raw
+    else:
+        Fz = -Fz_raw
+
+    return x,Fz
 
 
 # -------------- Running the controller ---------------------
@@ -351,13 +327,9 @@ if __name__ == "__main__":
     x_history = np.zeros((3,max_num_it))
     x_c_history = np.zeros((3,max_num_it))
     Fz_history = np.zeros(max_num_it)
-    orientation_error_history = np.zeros((3,max_num_it))
     #desired_ori_degrees = get_ori_degrees()
 
     time_per_iteration= np.zeros(max_num_it)
-    joints = np.zeros((7,max_num_it))
-    joints_d = np.zeros((7,max_num_it))
-
     
     
     # Specify the desired behaviour of the robot
@@ -365,23 +337,24 @@ if __name__ == "__main__":
     x_d = generate_desired_trajectory_tc(max_num_it,T,move_in_x=True)
     F_d = generate_Fd_smooth(max_num_it,T,sim)
 
-    #Filter-parameters
-    b = signal.firwin(3, 0.001)
-    z = signal.lfilter_zi(b, 1)
-
     E=0
+
+    t_states_list = np.zeros(max_num_it)
+    t_perform_admittance_list = np.zeros(max_num_it)
 
     # ----------- The control loop  -----------                       
     for i in range(max_num_it):        
         
-        x,ori,Fz = fetch_states(sim)
+        t0_states = rospy.get_time()
+        x,Fz = fetch_states(sim)
+        t_states_list[i] = rospy.get_time() - t0_states
 
 
         # Collecting data for plotting
-        Fz_history[i]=get_Fz(sim)
+        Fz_history[i]=Fz
         x_c_history[:,i] = x_d[:,i] + E
         x_history[:,i] = x
-        orientation_error_history[:,i] = quatdiff_in_euler_degrees(ori, goal_ori)
+        
 
         # Update the compliant position
         update_F_error_list(F_error_list,F_d[:,i],Fz,sim)
@@ -393,15 +366,17 @@ if __name__ == "__main__":
 
         
         """position control """
-        joints[:,i],joints_d[:,i] = perform_joint_position_control(x_d[:,i],E,goal_ori)
+        t0_perform_admittance = rospy.get_time()
+        robot.perform_admittance(x_d[:,i],E,goal_ori)
+        t_perform_admittance_list[i] = rospy.get_time() - t0_perform_admittance
         
         
         # Live printing to screen when the controller is running
         if i%100==0: 
-            print(i,' of ',max_num_it,', pos:',robot.endpoint_pose()['position'],' F: ', get_Fz(sim))
-
+            print(i,' of ',max_num_it,', pos:',x,' F: ', Fz)
 
         rate.sleep()
+        
     
     #Uncomment the block below to save plotting-data 
     """
@@ -415,4 +390,4 @@ if __name__ == "__main__":
 
 
     # Plotting the full result of the run         
-    plot_result(time_per_iteration, Fz_history,x_c_history,x_history,F_d,x_d,orientation_error_history,T,publish_rate,joints,joints_d)
+    plot_result(time_per_iteration, Fz_history,x_c_history,x_history,F_d,x_d,T,publish_rate,t_states_list,t_perform_admittance_list)
