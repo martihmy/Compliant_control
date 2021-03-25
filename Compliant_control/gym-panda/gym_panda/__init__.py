@@ -1,6 +1,6 @@
 from gym.envs.registration import register
 
 register(
-    id = 'panda-v0',
-    entry_points = 'gym_panda.envs:PandaEnv',
+    id = 'panda-admittance-v0',
+    entry_point = 'gym_panda.envs:PandaEnv',
 )

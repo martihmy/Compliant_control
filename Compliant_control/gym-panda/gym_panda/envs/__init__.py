@@ -1,1 +1,1 @@
-from gym_panda.envs.panda_env import PandaEnv
+from gym_panda.envs.panda_env_admittance import PandaEnv

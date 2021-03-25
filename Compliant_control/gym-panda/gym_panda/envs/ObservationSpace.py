@@ -18,3 +18,5 @@ from scipy import signal
 
 np.set_printoptions(precision=2)
 
+class ObservationSpace:
+    def __init__()

@@ -1,9 +1,12 @@
 import gym
 #from gym import ...
 from gym_panda.envs import admittance_functionality as af
-import rospy 
+from gym_panda.envs.Gym_basics_Admittance import ObservationSpace
+from gym_panda.envs import admittance_config as cfg
 from panda_robot import PandaArm
 from gym import spaces
+import numpy as np
+import rospy
 
 
 """ GENERAL COMMENTS 
@@ -20,14 +23,8 @@ from gym import spaces
 
 
 """Parameters"""
-sim = True
-publish_rate = 50
-rate = rospy.Rate(publish_rate)
-T = 0.001*(1000/publish_rate) # The control loop's time step
-duration = 15
-max_num_it = int(duration/T)
 
-M = 10  #apparant inertia in z
+
 
 """ end of parameters"""
 
@@ -35,60 +32,91 @@ class PandaEnv(gym.Env):
     #metadata = {'render.modes': ['human']}
 
     def __init(self):
+        self.sim = cfg.SIM_STATUS
         rospy.init_node("admittance_control")
         robot = PandaArm()
+        self.max_num_it = cfg.MAX_NUM_IT
 
-        move_to_start(cartboard,sim)
+        af.move_to_start(af.cartboard,self.sim)
         
         #set desired pose/force trajectory
-        goal_ori = robot.endpoint_pose()['orientation'] # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
-        x_d = af.generate_desired_trajectory_tc(max_num_it,T,move_in_x=True)
-        F_d = af.generate_Fd_smooth(max_num_it,T,sim)
+        self.goal_ori = robot.endpoint_pose()['orientation'] # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
+        self.x_d = af.generate_desired_trajectory_tc(self.max_num_it,cfg.T,move_in_x=True)
+        self.F_d = af.generate_Fd_smooth(self.max_num_it,cfg.T,self.sim)
 
-        F_error_list = np.zeros((3,3))
-        E = np.zeros(3)
-        E_history = np.zeros((3,3))
-        time_per_iteration = np.zeros(max_num_it)
+        self.F_error_list = np.zeros((3,3))
+        self.E = np.zeros(3)
+        self.E_history = np.zeros((3,3))
+        self.time_per_iteration = np.zeros(self.max_num_it)
         #only in __init
         self.action_space = spaces.Discrete(9)
-        self.observation_space = 
-        self.state = 
-        B=10
-        K=100
+        self.observation_space_container= ObservationSpace()
+        self.observation_space = self.observation_space_container.get_space_box() 
+        self.state = self.get_state()
+        self.M = cfg.M
+        self.B=cfg.B_START
+        self.K= cfg.K_START
+        self.F_history = np.zeros(cfg.F_WINDOW_SIZE)
+        
+        self.iteration=0
 
 
-    def step(self, action, iteration): #what action ?
-        x,ori,Fz = fetch_states(sim)
-        af.update_F_error_list(F_error_list,F_d[:,iteration],Fz,sim)
-        B,K = af.perform_action(action,B,K,0.1) #the last input is the rate of change in B and K    
-        time_per_iteration[iteration]=rospy.get_time()
-        E = af.calculate_E(iteration,time_per_iteration,E_history, F_error_list,M,B,K)
-        af.update_E_history(E_history,E)
-        af.perform_joint_position_control(x_d[:,iteration],E,goal_ori)
+    def step(self, action): #what action ?
 
+        self.B, self.K = af.perform_action(action,self.B,self.K,0.1) #the last input is the rate of change in B and K
+        
+        _,Fz = af.fetch_states(self.sim)
+        af.update_F_error_list(self.F_error_list,self.F_d[:,self.iteration],Fz,self.sim)   
+        self.time_per_iteration[self.iteration]=rospy.get_time()
+        self.E = af.calculate_E(self.iteration,self.time_per_iteration,self.E_history, self.F_error_list,self.M,self.B,self.K)
+        self.E_history = af.update_E_history(self.E_history,self.E)
+
+        af.perform_joint_position_control(self.x_d[:,self.iteration],self.E,self.goal_ori)
+
+        self.iteration += 1 #before or after get_state() ???
+        if self.iteration >= self.max_num_it:
+            done = True
+        else:
+            done = False
+        self.state = self.get_state()
+        
         rate.sleep()
+
+        return np.array(self.state), 0, done, {}
 
     def reset(self):
         rospy.init_node("admittance_control")
         robot = PandaArm()
 
-        move_to_start(cartboard,sim)
+        af.move_to_start(af.cartboard,self.sim)
 
         #set desired pose/force trajectory
-        goal_ori = robot.endpoint_pose()['orientation'] # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
-        x_d = af.generate_desired_trajectory_tc(max_num_it,T,move_in_x=True)
-        F_d = af.generate_Fd_smooth(max_num_it,T,sim)
+        self.goal_ori = robot.endpoint_pose()['orientation'] # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
+        self.x_d = af.generate_desired_trajectory_tc(self.max_num_it,cfg.T,move_in_x=True)
+        self.F_d = af.generate_Fd_smooth(self.max_num_it,cfg.T,self.sim)
 
-        F_error_list = np.zeros((3,3))
-        E = np.zeros(3)
-        E_history = np.zeros((3,3))
-        time_per_iteration = np.zeros(max_num_it)
+        self.F_error_list = np.zeros((3,3))
+        self.E = np.zeros(3)
+        self.E_history = np.zeros((3,3))
+        self.time_per_iteration = np.zeros(self.max_num_it)
 
-        B=10
-        K=100
+        self.B=cfg.B_START
+        self.K= cfg.K_START
+        self.iteration=0
+        self.F_history = np.zeros(cfg.F_WINDOW_SIZE)
+
+        self.state = self.get_state()
+        return np.array(self.state)
 
     #def render(self, mode = 'human'):
 
-    def close(self):
+    #def close(self):
 
-    def get_state():
+    def get_state(self):
+        #self.Fz = af.get_Fz(self.sim)
+        self.F_history = np.append(af.get_Fz(self.sim),self.F_history[:cfg.F_WINDOW_SIZE-1])
+        self.Fd_window = self.F_d[self.iteration:self.iteration+cfg.Fd_WINDOW_SIZE]#for _ in range(len(cfg.F_WINDOW_SIZE)):
+        self.delta_Xd_window = self.x_d[0,self.iteration+1:self.iteration+cfg.DELTA_Xd_SIZE+1]-self.x_d[0,self.iteration:self.iteration+cfg.DELTA_Xd_SIZE]+self.x_d[1,self.iteration+1:self.iteration+cfg.DELTA_Xd_SIZE+1]-self.x_d[1,self.iteration:self.iteration+cfg.DELTA_Xd_SIZE]
+        state_list = [self.B, self.K, self.F_history, self.Fd_window, self.delta_Xd_window]
+
+        return tuple(state_list)

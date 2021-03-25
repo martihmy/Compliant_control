@@ -73,11 +73,11 @@ def generate_desired_trajectory(iterations,T):
 
 #2  Generate a (time-consistent) desired motion-trajectory
 def generate_desired_trajectory_tc(iterations,T,move_in_x=False, move_down=False): #admittance
-    a = np.zeros((3,iterations))
-    v = np.zeros((3,iterations))
-    p = np.zeros((3,iterations))
+    a = np.zeros((3,iterations+100))
+    v = np.zeros((3,iterations+100))
+    p = np.zeros((3,iterations+100))
     p[:,0] = robot.endpoint_pose()['position']
-
+    max_num_it = iterations
     if move_down:
         a[2,0:int(max_num_it/75)]=-0.625
         a[2,int(max_num_it/75):int(max_num_it*2/75)]=0.625
@@ -85,7 +85,7 @@ def generate_desired_trajectory_tc(iterations,T,move_in_x=False, move_down=False
     if move_in_x:
         a[0,int(max_num_it*4/10):int(max_num_it*5/10)]=0.015
         a[0,int(max_num_it*7/10):int(max_num_it*8/10)]=-0.015
-    for i in range(max_num_it):
+    for i in range(max_num_it+100):
         if i>0:
             v[:,i]=v[:,i-1]+a[:,i-1]*T
             p[:,i]=p[:,i-1]+v[:,i-1]*T
@@ -97,14 +97,14 @@ def generate_desired_trajectory_tc(iterations,T,move_in_x=False, move_down=False
 
 #1  Generate a SMOOTH desired force-trajectory [STABLE]
 def generate_Fd_smooth(max_num_it,T,sim=False):
-    a = np.zeros((6,max_num_it))
-    v = np.zeros((6,max_num_it))
-    s = np.zeros((6,max_num_it))
+    a = np.zeros((6,max_num_it+100))
+    v = np.zeros((6,max_num_it+100)) #+100 to add a buffer when updating the state-space
+    s = np.zeros((6,max_num_it+100)) 
     s[2,0]= get_Fz(sim)
     a[2,0:max_num_it/15] = 5
     a[2,max_num_it/15:2*max_num_it/15] = - 5
 
-    for i in range(max_num_it):
+    for i in range(max_num_it+100):
         if i>0:
             v[2,i]=v[2,i-1]+a[2,i-1]*T
             s[2,i]=s[2,i-1]+v[2,i-1]*T
@@ -197,6 +197,7 @@ def update_E_history(E_history, E):
     for i in range(3):
         E_history[i][1]=E_history[i][0]
         E_history[i][0] = E[i]
+    return E_history
 
 # Calculate E (as in 'step 8' of 'algorithm 2' in Lahr2016 [Understanding the implementation of Impedance Control in Industrial Robots] )
 def calculate_E(i,time_per_iteration,E_history, F_e_history,M,B,K):
