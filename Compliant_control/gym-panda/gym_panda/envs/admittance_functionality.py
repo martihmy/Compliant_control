@@ -72,7 +72,7 @@ def generate_desired_trajectory(iterations,T):
     return p
 
 #2  Generate a (time-consistent) desired motion-trajectory
-def generate_desired_trajectory_tc(iterations,T,move_in_x=False, move_down=False): #admittance
+def generate_desired_trajectory_tc(robot,iterations,T,move_in_x=False, move_down=False): #admittance
     a = np.zeros((3,iterations+100))
     v = np.zeros((3,iterations+100))
     p = np.zeros((3,iterations+100))
@@ -96,11 +96,11 @@ def generate_desired_trajectory_tc(iterations,T,move_in_x=False, move_down=False
 """Functions for generating desired FORCE trajectories"""
 
 #1  Generate a SMOOTH desired force-trajectory [STABLE]
-def generate_Fd_smooth(max_num_it,T,sim=False):
+def generate_Fd_smooth(robot,max_num_it,T,sim=False):
     a = np.zeros((6,max_num_it+100))
     v = np.zeros((6,max_num_it+100)) #+100 to add a buffer when updating the state-space
     s = np.zeros((6,max_num_it+100)) 
-    s[2,0]= get_Fz(sim)
+    s[2,0]= robot.get_Fz(sim)
     a[2,0:max_num_it/15] = 5
     a[2,max_num_it/15:2*max_num_it/15] = - 5
 
@@ -208,10 +208,10 @@ def calculate_E(i,time_per_iteration,E_history, F_e_history,M,B,K):
     return np.array([0,0,x_z]) 
 
 # Perform position control with the compliant position (x_c = x_d + E) as input
-def perform_joint_position_control(x_d,E,ori):
+def perform_joint_position_control(robot,x_d,E,ori):
     x_c = x_d + E
     desired_joint_angles = robot.inverse_kinematics(x_c,ori=ori)[1]
-    joint_angles = robot.joint_ordered_angles()
+    #joint_angles = robot.joint_ordered_angles()
 
     robot.exec_position_cmd(desired_joint_angles)
 
@@ -318,7 +318,7 @@ def move_to_start(alternative_position, sim):
     else:
         robot.move_to_joint_positions(alternative_position)
 
-def fetch_states(sim):
+def fetch_states(robot,sim):
     x,Fz_raw = robot.fetch_states_admittance()
     if sim:
         Fz = Fz_raw

@@ -5,7 +5,7 @@ import gym
 import numpy as np
 import gym
 from gym import spaces
-from gym_panda.envs.Admittance_support import admittance_config as cfg
+from gym_panda.envs import admittance_config as cfg
 
 class ObservationSpace:
     def __init__(self):
@@ -31,15 +31,15 @@ class ObservationSpace:
         lower = np.array([self.lower_B, self.lower_K])
         upper = np.array([self.upper_B, self.upper_K ])
         
-        for _ in range(len(self.F_window)):
+        for _ in range(self.F_window):
             lower = np.append(lower,self.lower_F)
             upper = np.append(upper,self.upper_F)
             
-        for _ in range(len(self.Fd_window)):
+        for _ in range(self.Fd_window):
             lower = np.append(lower,self.lower_Fd)
             upper = np.append(upper,self.upper_Fd)
 
-        for _ in range(len(self.delta_Xd_window)):
+        for _ in range(self.delta_Xd_window):
             lower = np.append(lower,self.lower_delta_Xd)
             upper = np.append(upper,self.upper_delta_Xd)
 

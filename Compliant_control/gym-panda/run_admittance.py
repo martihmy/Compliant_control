@@ -2,12 +2,13 @@ import gym
 import gym_panda
 import random
 import numpy as np
+
  
 
 
 class Agent():
 	def __init__(self, env):
-		self.action_size = env.action_space.n
+		self.action_size = 9 #env.action_space.n
 		print("Action size", self.action_size)
 
 	def get_action(self):
