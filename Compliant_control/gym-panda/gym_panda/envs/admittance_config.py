@@ -21,8 +21,8 @@ MAX_NUM_IT = int(duration*PUBLISH_RATE)
 ALTERNATIVE_START = af.cartboard
 
 M = 5
-B_START = 10
-K_START = 100
+B_START = 50
+K_START = 150
 
 INCREMENT = 0.1
 
