@@ -87,14 +87,10 @@ class PandaEnv(gym.Env):
 
         af.perform_joint_position_control(self.robot,self.x_d[:,self.iteration],self.E,self.goal_ori)
 
-        
-
-
-
         self.iteration += 1 #before or after get_state() ???
 
         if self.iteration %100==0:
-            print('At iteration number ',self.iteration,' /',self.max_num_it)
+            print('     At iteration number ',self.iteration,' /',self.max_num_it)
 
         if self.iteration >= self.max_num_it:
             done = True
@@ -111,9 +107,6 @@ class PandaEnv(gym.Env):
         return np.array(self.state), 0, done, {}
 
     def reset(self):
-        rospy.init_node("admittance_control")
-        self.robot = PandaArm()
-
         self.robot.move_to_start(cfg.ALTERNATIVE_START,self.sim)
 
         #set desired pose/force trajectory
@@ -146,7 +139,7 @@ class PandaEnv(gym.Env):
     def get_state(self):
         #self.Fz = af.get_Fz(self.sim)
         self.F_history = np.append(self.robot.get_Fz(self.sim),self.F_history[:cfg.F_WINDOW_SIZE-1])
-        self.Fd_window = self.F_d[self.iteration:self.iteration+cfg.Fd_WINDOW_SIZE]#for _ in range(len(cfg.F_WINDOW_SIZE)):
+        self.Fd_window = self.F_d[2,self.iteration:self.iteration+cfg.Fd_WINDOW_SIZE]#for _ in range(len(cfg.F_WINDOW_SIZE)):
         self.delta_Xd_window = self.x_d[0,self.iteration+1:self.iteration+cfg.DELTA_Xd_SIZE+1]-self.x_d[0,self.iteration:self.iteration+cfg.DELTA_Xd_SIZE]+self.x_d[1,self.iteration+1:self.iteration+cfg.DELTA_Xd_SIZE+1]-self.x_d[1,self.iteration:self.iteration+cfg.DELTA_Xd_SIZE]
         state_list = [self.B, self.K, self.F_history, self.Fd_window, self.delta_Xd_window]
 
@@ -203,7 +196,7 @@ class PandaEnv(gym.Env):
                 self.B += cfg.INCREMENT
 
     def plot_run(self):
-
+        print('     making plot...')
         #getting a correct list of time spent in each iteration
         raw_time = self.history[8,:]
         offset_free_time = raw_time - raw_time[0]
