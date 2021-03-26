@@ -7,7 +7,7 @@ from panda_robot import PandaArm
 from gym import spaces
 import numpy as np
 import rospy
-
+import matplotlib.pyplot as plt
 
 """ GENERAL COMMENTS 
 
@@ -68,8 +68,8 @@ class PandaEnv(gym.Env):
        
         
         self.iteration=0
-        self.history = np.zeros((8,self.max_num_it))
-        self.history[1,:] = self.F_d[:self.max_num_it]
+        self.history = np.zeros((9,self.max_num_it))
+        self.history[1,:] = self.F_d[2,:self.max_num_it]
         self.state = self.get_state()
 
 
@@ -92,9 +92,13 @@ class PandaEnv(gym.Env):
 
 
         self.iteration += 1 #before or after get_state() ???
+
+        if self.iteration %100==0:
+            print('At iteration number ',self.iteration,' /',self.max_num_it)
+
         if self.iteration >= self.max_num_it:
             done = True
-            self.history[8,:]=self.time_per_iteration
+            self.plot_run()
         else:
             done = False
 
@@ -102,7 +106,7 @@ class PandaEnv(gym.Env):
         rate = self.rate
         rate.sleep()
         
-        self.plot_run()
+        
 
         return np.array(self.state), 0, done, {}
 
@@ -129,8 +133,8 @@ class PandaEnv(gym.Env):
         self.iteration=0
         self.F_history = np.zeros(cfg.F_WINDOW_SIZE)
 
-        self.history = np.zeros((8,self.max_num_it))
-        self.history[1,:] = self.F_d[:self.max_num_it]
+        self.history = np.zeros((9,self.max_num_it))
+        self.history[1,:] = self.F_d[2,:self.max_num_it]
 
         self.state = self.get_state()
         return np.array(self.state)
@@ -154,13 +158,14 @@ class PandaEnv(gym.Env):
 
     def update_history(self):
         self.history[0,self.iteration] = self.Fz
+        #Fd
         self.history[2,self.iteration] = self.B
         self.history[3,self.iteration] = self.K
-
         self.history[4,self.iteration] = self.x[0] #x
         self.history[5,self.iteration] = self.x[1] #y
         self.history[6,self.iteration] = self.x[2] #z
-        self.history[7,self.iteration] = self.x[2] + self.E #z_c
+        self.history[7,self.iteration] = self.x[2] + self.E[2] #z_c
+        self.history[8,:]=self.time_per_iteration
 
     
     def alter_stiffness_and_damping(self,action):
@@ -176,23 +181,25 @@ class PandaEnv(gym.Env):
         #                       (1,4,7): don't change B
         #                               (2,5,8): increase B
         if action < 3:
-            self.K += cfg.INCREMENT
-            if action == 0:
+            if self.K < cfg.UPPER_K:
+                self.K += cfg.INCREMENT
+            if action == 0 and self.B > cfg.LOWER_B:
                 self.B -= cfg.INCREMENT
-            if action == 2:
+            if action == 2 and self.B < cfg.UPPER_B:
                 self.B += cfg.INCREMENT
     
         elif action in range(3,5):
-            if action == 3:
+            if action == 3 and self.B > cfg.LOWER_B:
                 self.B -= cfg.INCREMENT
-            if action == 5:
+            if action == 5 and self.B < cfg.UPPER_B:
                 self.B +=cfg.INCREMENT
 
         elif action > 5:
-            self.K -= cfg.INCREMENT
-            if action == 6:
+            if self.K > cfg.LOWER_B:
+                self.K -= cfg.INCREMENT
+            if action == 6 and self.B > cfg.LOWER_B:
                 self.B -= cfg.INCREMENT
-            if action == 8:
+            if action == 8 and self.B < cfg.UPPER_B:
                 self.B += cfg.INCREMENT
 
     def plot_run(self):
@@ -210,6 +217,53 @@ class PandaEnv(gym.Env):
         raw_force = self.history[0,:]
         offset_free_force = raw_force - raw_force[0] #remove offset
         raw_Fd = self.history[1,:]
-        offset_free_Fd= raw_Fd -raw_Fd[0] #remove offset
+        offset_free_Fdz= raw_Fd[:] -raw_Fd[0] #remove offset
 
-        
+        plt.subplot(231)
+        plt.title("External force")
+        plt.plot(offset_free_time, offset_free_force, label="force z [N]")
+        plt.plot(offset_free_time, offset_free_Fdz, label = " desired z-force [N]", color='b',linestyle='dashed')
+        plt.xlabel("Real time [s]")
+        plt.legend()
+
+        plt.subplot(232)
+        plt.title("Positional adjustments in z")
+        plt.plot(offset_free_time, self.history[6,:], label = "true  z [m]")
+        plt.plot(offset_free_time, self.x_d[2,:self.max_num_it], label = "desired z [m]",linestyle='dashed')
+        plt.plot(offset_free_time, self.history[7,:], label = "compliant z [m]",linestyle='dotted')
+        plt.xlabel("Real time [s]")
+        plt.legend()
+    
+        plt.subplot(233)
+        plt.title("position in x and y")
+        plt.plot(offset_free_time, self.history[4,:], label = "true x [m]")
+        plt.plot(offset_free_time, self.history[5,:], label = "true y [m]")
+        plt.plot(offset_free_time, self.x_d[0,:self.max_num_it], label = "desired x [m]", color='b',linestyle='dashed')
+        plt.plot(offset_free_time, self.x_d[1,:self.max_num_it], label = "desired y [m]", color='C1',linestyle='dashed')
+        plt.xlabel("Real time [s]")
+        plt.legend()
+    
+        plt.subplot(234)
+        plt.title("Varying damping")
+        plt.plot(offset_free_time, self.history[2,:], label="damping (B)")
+        plt.axhline(y=cfg.B_START, label = 'initial damping (B_0)', color='C1', linestyle = 'dashed')
+        plt.xlabel("Real time [s]")
+        plt.legend()
+
+        plt.subplot(235)
+        plt.title("Varying stiffness")
+        plt.plot(offset_free_time, self.history[3,:], label="stiffness (K)")
+        plt.axhline(y=cfg.K_START, label = 'initial stiffness (K_0)', color='C1', linestyle = 'dashed')
+        plt.xlabel("Real time [s]")
+        plt.legend()
+
+        plt.subplot(236)
+        plt.title("Time per iteration")
+        plt.plot(T_list, label = "time per iteration")
+        plt.axhline(y=cfg.T, label = 'desired time-step', color='C1', linestyle = 'dashed')
+        #plt.axhline(np.mean(new_list), label = 'mean', color='red', linestyle = 'dashed')
+        plt.xlabel("iterations")
+        plt.legend()
+    
+        plt.show()
+
