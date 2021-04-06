@@ -73,7 +73,7 @@ class PandaEnv(gym.Env):
         self.state = self.get_state()
 
 
-    def step(self, action): #what action ?
+    def step(self, action):
 
         #self.B, self.K = af.perform_action(action,self.B,self.K,0.1) #the last input is the rate of change in B and K
         self.alter_stiffness_and_damping(action)
@@ -101,10 +101,12 @@ class PandaEnv(gym.Env):
         self.state = self.get_state()
         rate = self.rate
         rate.sleep()
+
+        reward = - abs(self.F_error_list[2][0])**2 # reward = negative square of last recorded error in z-force
         
         
 
-        return np.array(self.state), 0, done, {}
+        return np.array(self.state), reward, done, {}
 
     def reset(self):
         self.robot.move_to_start(cfg.ALTERNATIVE_START,self.sim)
