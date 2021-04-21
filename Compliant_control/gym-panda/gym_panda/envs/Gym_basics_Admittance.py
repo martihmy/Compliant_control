@@ -7,6 +7,30 @@ import gym
 from gym import spaces
 from gym_panda.envs import admittance_config as cfg
 
+
+#new version fitting to the "get_compact_state" function
+class ObservationSpace:
+    def __init__(self):
+        #limits
+        self.lower_B = cfg.LOWER_B
+        self.upper_B = cfg.UPPER_B
+        self.lower_K = cfg.LOWER_K
+        self.upper_K =  cfg.UPPER_K
+        self.lower_F_delta = cfg.LOWER_F_DELTA
+        self.upper_F_delta = cfg.UPPER_F_DELTA
+        self.lower_delta_Xd = cfg.LOWER_DELTA_Xd
+        self.upper_delta_Xd = cfg.UPPER_DELTA_Xd
+
+
+    def get_space_box(self):
+        lower = np.array([self.lower_B, self.lower_K,self.lower_F_delta,self.lower_F_delta,self.lower_F_delta,self.lower_delta_Xd,self.lower_delta_Xd ])
+        upper = np.array([self.upper_B, self.upper_K,self.upper_F_delta,self.upper_F_delta,self.upper_F_delta,self.upper_delta_Xd,self.upper_delta_Xd ])
+
+
+
+
+#old version 
+"""
 class ObservationSpace:
     def __init__(self):
         #limits
@@ -42,7 +66,7 @@ class ObservationSpace:
         for _ in range(self.delta_Xd_window):
             lower = np.append(lower,self.lower_delta_Xd)
             upper = np.append(upper,self.upper_delta_Xd)
-
+"""
 
 
 

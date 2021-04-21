@@ -11,11 +11,18 @@ import matplotlib.pyplot as plt
 
 """ GENERAL COMMENTS 
 
-1) The rospy-node is initialized at the beginning of each run (do we need to?)
+1) Gazebo must be setup before the training starts (object in place + servers running)
 
-2) The gazebo must be setup before the training starts (object in place + servers running)
+2) Using "get_compact_state()", the state-space now look like this:
 
-3) Can 'iteration" be a parameter of step()? (I think not)
+            [damping, 
+            stiffness, 
+            force error 5 timesteps ago, 
+            force error now, 
+            difference between current force and the desired one 10 timesteps from now,
+            desired velocity
+            desired velocity 10 timesteps from now]
+
 """
 
 
@@ -34,8 +41,10 @@ class PandaEnv(gym.Env):
     def __init__(self):
         #only in __init()
         self.sim = cfg.SIM_STATUS
+    
+
         #self.increment = cfg.INCREMENT
-        self.action_space = spaces.Discrete(9)
+        self.action_space = spaces.Box(low= -1, high = 1, shape=(2,)) #spaces.Discrete(9)
         self.observation_space_container= ObservationSpace()
         self.observation_space = self.observation_space_container.get_space_box()
         self.max_num_it = cfg.MAX_NUM_IT 
@@ -51,7 +60,7 @@ class PandaEnv(gym.Env):
         #set desired pose/force trajectory
         self.goal_ori = self.robot.endpoint_pose()['orientation'] # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
         self.x_d = af.generate_desired_trajectory_tc(self.robot,self.max_num_it,cfg.T,move_in_x=True)
-        self.F_d = af.generate_Fd_smooth(self.robot,self.max_num_it,cfg.T,self.sim)
+        self.F_d = af.generate_F_d_constant(self.robot,self.max_num_it,cfg.T,self.sim)     #af.generate_Fd_smooth(self.robot,self.max_num_it,cfg.T,self.sim)
         self.x = self.x_d[:,0]
 
         self.F_error_list = np.zeros((3,3))
@@ -65,18 +74,25 @@ class PandaEnv(gym.Env):
         self.K = cfg.K_START
         self.Fz = 0
         self.F_history = np.zeros(cfg.F_WINDOW_SIZE)
+        self.delta_F_history = np.zeros(cfg.DELTA_F_WINDOW_SIZE)
        
         
         self.iteration=0
-        self.history = np.zeros((9,self.max_num_it))
+        self.history = np.zeros((12,self.max_num_it))
         self.history[1,:] = self.F_d[2,:self.max_num_it]
-        self.state = self.get_state()
+        self.history[9,:] = self.x_d[0,:self.max_num_it]
+        self.history[10,:] = self.x_d[0,:self.max_num_it]
+        self.history[11,:] = self.x_d[0,:self.max_num_it]
+        self.state = self.get_pure_states()#self.get_compact_state()
+        print('The environment is initialized')
+        print('')
 
-
+        
     def step(self, action):
 
-        #self.B, self.K = af.perform_action(action,self.B,self.K,0.1) #the last input is the rate of change in B and K
-        self.alter_stiffness_and_damping(action)
+        
+        self.update_stiffness_and_damping(action) #self.alter_stiffness_and_damping(action)
+        
         self.update_pos_and_force()#self.sim
         af.update_F_error_list(self.F_error_list,self.F_d[:,self.iteration],self.Fz,self.sim)   
         self.time_per_iteration[self.iteration]=rospy.get_time()
@@ -87,18 +103,20 @@ class PandaEnv(gym.Env):
 
         af.perform_joint_position_control(self.robot,self.x_d[:,self.iteration],self.E,self.goal_ori)
 
-        self.iteration += 1 #before or after get_state() ???
+        self.iteration += 1 #before or after get_compact_state() ???
 
         if self.iteration %100==0:
             print('     At iteration number ',self.iteration,' /',self.max_num_it)
 
         if self.iteration >= self.max_num_it:
             done = True
-            self.plot_run()
+            placeholder = self.history
+            #self.plot_run()
         else:
             done = False
+            placeholder = None
 
-        self.state = self.get_state()
+        self.state = self.get_pure_states()#self.get_compact_state()
         rate = self.rate
         rate.sleep()
 
@@ -106,7 +124,7 @@ class PandaEnv(gym.Env):
         
         
 
-        return np.array(self.state), reward, done, {}
+        return np.array(self.state), reward, done, placeholder
 
     def reset(self):
         self.robot.move_to_start(cfg.ALTERNATIVE_START,self.sim)
@@ -127,11 +145,16 @@ class PandaEnv(gym.Env):
         self.K= cfg.K_START
         self.iteration=0
         self.F_history = np.zeros(cfg.F_WINDOW_SIZE)
+        self.delta_F_history = np.zeros(cfg.DELTA_F_WINDOW_SIZE)
 
-        self.history = np.zeros((9,self.max_num_it))
+
+        self.history = np.zeros((12,self.max_num_it))
         self.history[1,:] = self.F_d[2,:self.max_num_it]
+        self.history[9,:] = self.x_d[0,:self.max_num_it]
+        self.history[10,:] = self.x_d[0,:self.max_num_it]
+        self.history[11,:] = self.x_d[0,:self.max_num_it]
 
-        self.state = self.get_state()
+        self.state = self.get_pure_states() # self.get_compact_state()
         return np.array(self.state)
 
     #def render(self, mode = 'human'):
@@ -144,8 +167,26 @@ class PandaEnv(gym.Env):
         self.Fd_window = self.F_d[2,self.iteration:self.iteration+cfg.Fd_WINDOW_SIZE]#for _ in range(len(cfg.F_WINDOW_SIZE)):
         self.delta_Xd_window = self.x_d[0,self.iteration+1:self.iteration+cfg.DELTA_Xd_SIZE+1]-self.x_d[0,self.iteration:self.iteration+cfg.DELTA_Xd_SIZE]+self.x_d[1,self.iteration+1:self.iteration+cfg.DELTA_Xd_SIZE+1]-self.x_d[1,self.iteration:self.iteration+cfg.DELTA_Xd_SIZE]
         state_list = [self.B, self.K, self.F_history, self.Fd_window, self.delta_Xd_window]
-
         return tuple(state_list)
+
+    def get_compact_state(self):
+        F = self.robot.get_Fz(self.sim)
+        self.delta_F_history = np.append(F-self.F_d[2,self.iteration],self.delta_F_history[:cfg.DELTA_F_WINDOW_SIZE-1])
+        net_F_to_future = F - self.F_d[2,self.iteration + cfg.Fd_HORIZON]
+        delta_xd_now = self.x_d[0,self.iteration+1] - self.x_d[0,self.iteration]
+        delta_xd_soon = self.x_d[0,self.iteration+1+cfg.DELTA_Xd_HORIZON] - self.x_d[0,self.iteration+cfg.DELTA_Xd_HORIZON]
+        state_list = [self.B, self.K, self.delta_F_history[-1], self.delta_F_history[0],net_F_to_future, delta_xd_now, delta_xd_soon]
+        return tuple(state_list)
+
+    def get_pure_states(self):
+        self.update_pos_and_force()
+        F = self.robot.get_Fz(self.sim)
+        delta_p_z = self.x[2] - self.x_d[2,0]
+        vel_z = self.x[2] - self.history[6,self.iteration-1] # current x_z minus last recorded x_z
+        state_list = [F, delta_p_z, vel_z]
+        return tuple(state_list)
+
+
 
     def update_pos_and_force(self):
         robot = self.robot
@@ -196,6 +237,17 @@ class PandaEnv(gym.Env):
                 self.B -= cfg.INCREMENT
             if action == 8 and self.B < cfg.UPPER_B:
                 self.B += cfg.INCREMENT
+
+
+    def update_stiffness_and_damping(self,action):
+        self.B = self.B + action[0]
+        if self.B > cfg.UPPER_B: self.B = cfg.UPPER_B
+        if self.B < cfg.LOWER_B: self.B = cfg.LOWER_B
+        
+        self.K = self.K + action[1]
+        if self.K > cfg.UPPER_K: self.K = cfg.UPPER_K
+        if self.K < cfg.LOWER_K: self.K = cfg.LOWER_K
+
 
     def plot_run(self):
         print('     making plot...')
@@ -262,3 +314,24 @@ class PandaEnv(gym.Env):
     
         plt.show()
 
+class Normalised_Env():
+    def __init__(self, env_id, m, std):
+        self.env = make(env_id).env # same as gym.make?
+        self.action_space = self.env.action_space
+        self.observation_space = self.env.observation_space
+        self.m = m
+        self.std = std
+
+    def state_trans(self, x):
+        return np.divide(x-self.m, self.std)
+
+    def step(self, action):
+        ob, r, done, _ = self.env.step(action)
+        return self.state_trans(ob), r, done, {}
+
+    def reset(self):
+        ob =  self.env.reset()
+        return self.state_trans(ob)
+
+    def render(self):
+        self.env.render()
