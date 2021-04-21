@@ -10,8 +10,8 @@ import quaternion
 import numpy as np
 from geometry_msgs.msg import Point
 from visualization_msgs.msg import *
-from franka_interface import ArmInterface
-from panda_robot import PandaArm
+#from franka_interface import ArmInterface
+#from panda_robot import PandaArm
 import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation
 from scipy import signal
@@ -138,11 +138,11 @@ def generate_Fd_advanced(max_num_it,T):
     return s
 
 # Generate a constant desired force [STABLE]
-def generate_F_d_constant(max_num_it,T,sim):
+def generate_F_d_constant(robot, max_num_it,T,sim):
     a = np.zeros((6,max_num_it))
     v = np.zeros((6,max_num_it))
     s = np.zeros((6,max_num_it))
-    s[2,0]= get_Fz(sim)+3
+    s[2,0]= 3#robot.get_Fz(sim)+3
     for i in range(max_num_it):
         if i>0:
             v[2,i]=v[2,i-1]+a[2,i-1]*T
