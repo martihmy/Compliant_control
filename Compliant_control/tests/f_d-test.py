@@ -1,21 +1,21 @@
 #! /usr/bin/env python
 import copy
 from copy import deepcopy
-import rospy
+#import rospy
 import threading
 import quaternion
 import numpy as np
-from geometry_msgs.msg import Point
-from visualization_msgs.msg import *
+#from geometry_msgs.msg import Point
+#from visualization_msgs.msg import *
 #from interactive_markers.interactive_marker_server import *
-from franka_interface import ArmInterface
-from panda_robot import PandaArm
+#from franka_interface import ArmInterface
+#from panda_robot import PandaArm
 #import pytransform3d.rotations
 
 #from rviz_markers import RvizMarkers
 import matplotlib.pyplot as plt
 #import panda as pd
-from scipy.spatial.transform import Rotation
+#from scipy.spatial.transform import Rotation
 import math
 
 np.set_printoptions(precision=2)
@@ -23,7 +23,7 @@ np.set_printoptions(precision=2)
 # --------- Constants -----------------------------
 
 
-def plot_result(f_d,f_d_dot,f_d_ddot, T):
+def plot_result(f_d, T):
 
     time_array = np.arange(len(f_d))*T
     
@@ -242,7 +242,7 @@ def generate_F_d_constant(max_num_it,T):
     return a,v,s
 
 
-
+"""
 def generate_F_d_robot(max_num_it,T):
     a = np.zeros((6,max_num_it))
     v = np.zeros((6,max_num_it))
@@ -257,16 +257,30 @@ def generate_F_d_robot(max_num_it,T):
             s[2,i]=s[2,i-1]+v[2,i-1]*T
 
     return a,v,s
+    """
+
+def generate_F_d_steep(max_num_it,T,f_d):
+    a = np.zeros((6,max_num_it))
+    v = np.zeros((6,max_num_it))
+    s = np.zeros((6,max_num_it))
+    #s[2,0]= robot.get_Fz(sim)
+    v[2,0] = 10
+    for i in range(max_num_it):
+        if i>0:
+            v[2,i]=v[2,i-1]#+a[2,i-1]*T
+            s[2,i]=min(s[2,i-1]+v[2,i-1]*T,f_d)
+    return s
+
 if __name__ == "__main__":
-    duration = 15
-    T = 0.001*(1000/513) #correct for sim
+    duration = 10
+    T = 0.02#correct for sim
     max_num_it = int(duration / T)
-    #max_num_it=3750
+    max_num_it = 500
     # TO BE INITIALISED BEFORE LOOP
     
 
-    f_d_ddot,f_d_dot, f_d = generate_F_d_constant(max_num_it,T)
+    f_d = generate_F_d_steep(max_num_it,T)
 
 
-    plot_result(f_d[2],f_d_dot[2],f_d_ddot[2],T)
+    plot_result(f_d[2],T)
 

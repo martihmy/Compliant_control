@@ -1,15 +1,15 @@
 #! /usr/bin/env python
 import copy
 from copy import deepcopy
-import rospy
+#import rospy
 import threading
 import quaternion
 import numpy as np
-from geometry_msgs.msg import Point
-from visualization_msgs.msg import *
+#from geometry_msgs.msg import Point
+#from visualization_msgs.msg import *
 #from interactive_markers.interactive_marker_server import *
-from franka_interface import ArmInterface
-from panda_robot import PandaArm
+#from franka_interface import ArmInterface
+#from panda_robot import PandaArm
 #import pytransform3d.rotations
 
 #from rviz_markers import RvizMarkers
@@ -79,20 +79,37 @@ def generate_F_d_robot4(max_num_it,T,sim=False):
 
     return a,v,s
 
+def generate_Fd_steep(max_num_it,T,f_d):
+    a = np.zeros(max_num_it)
+    v = np.zeros(max_num_it)
+    s = np.zeros(max_num_it)
+    v[0]=10
+
+
+    for i in range(max_num_it):
+        if i>0:
+            v[i]=v[i-1]+a[i-1]*T
+            s[i]=s[i-1]+v[i-1]*T
+            if s[i]>3:
+                s[i] = f_d
+                v[i]=0
+
+    return a,v,s
+
 if __name__ == "__main__":
 
     sim=True
-    rospy.init_node("impedance_control")
-    robot = PandaArm()
-    publish_rate = 150
-    duration=15
-    rate = rospy.Rate(publish_rate)
+    #rospy.init_node("impedance_control")
+    #robot = PandaArm()
+    publish_rate = 50
+    duration=10
+    #rate = rospy.Rate(publish_rate)
     T = 0.001*(1000/publish_rate)
-    max_num_it = int(duration /T)
+    max_num_it = int(publish_rate*duration)
 
     
 
-    f_d_ddot,f_d_dot, f_d = generate_F_d_robot4(max_num_it,T,sim)
+    f_d_ddot,f_d_dot, f_d = generate_Fd_steep(max_num_it,T,sim)
 
 
     plot_result(f_d,f_d_dot,f_d_ddot,T)

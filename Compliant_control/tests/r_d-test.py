@@ -21,6 +21,8 @@ np.set_printoptions(precision=2)
 
 # --------- Constants -----------------------------
 
+def get_p():
+    return robot.endpoint_pose()['position'][0:2]
 
 def get_r():
     quat_as_list = np.array([robot.endpoint_pose()['orientation'].x,robot.endpoint_pose()['orientation'].y,robot.endpoint_pose()['orientation'].z,robot.endpoint_pose()['orientation'].w])
@@ -41,6 +43,23 @@ def get_r_d(max_num_it):
         if i>0:
             v[:,i]=v[:,i-1]+a[:,i-1]
             s[:,i]=s[:,i-1]+v[:,i-1]
+    return a,v,s
+
+def generate_desired_trajectory(max_num_it,T,move_in_x=True):
+    a = np.zeros((5,max_num_it))
+    v = np.zeros((5,max_num_it))
+    s = np.zeros((2,max_num_it))
+    
+    s[:,0]= get_p()
+
+    if move_in_x:
+        a[0,int(max_num_it*4/10):int(max_num_it*5/10)]=0.015*2
+        a[0,int(max_num_it*7/10):int(max_num_it*8/10)]=-0.015*2
+
+    for i in range(max_num_it):
+        if i>0:
+            v[:,i]=v[:,i-1]+a[:,i-1]*T
+            s[:,i]=s[:,i-1]+v[:2,i-1]*T
     return a,v,s
 
 def plot_result(r_d,T):
@@ -75,16 +94,17 @@ def plot_result(r_d,T):
 # MAIN FUNCTION
 if __name__ == "__main__":
     rospy.init_node("impedance_control")
-    publish_rate = 250
+    publish_rate = 50
+    duration = 10
     rate = rospy.Rate(publish_rate)
     
     robot = PandaArm()
     robot.move_to_neutral() 
 
-    max_num_it=7500
+    max_num_it= int(publish_rate*duration)
     # TO BE INITIALISED BEFORE LOOP
     T = 0.001*(1000/publish_rate) #correct for sim
-    a,v,s = get_r_d(max_num_it)
+    a,v,s = generate_desired_trajectory_tc(max_num_it,T)
     plot_result(s,T)
 
 
