@@ -149,6 +149,30 @@ def generate_F_d_constant(robot, max_num_it,T,sim):
             s[2,i]=s[2,i-1]+v[2,i-1]*T
     return s
 
+def generate_F_d_steep(robot, max_num_it,T,sim):
+    a = np.zeros((6,max_num_it))
+    v = np.zeros((6,max_num_it))
+    s = np.zeros((6,max_num_it))
+    #s[2,0]= robot.get_Fz(sim)
+    v[2,0] = 0.05
+    for i in range(max_num_it):
+        if i>0:
+            #v[2,i]=v[2,i-1]+a[2,i-1]*T
+            s[2,i]=min(s[2,i-1]+v[2,i-1]*T,3)
+    return s
+
+def generate_F_d_steep(max_num_it,T,f_d):
+    a = np.zeros((6,max_num_it))
+    v = np.zeros((6,max_num_it))
+    s = np.zeros((6,max_num_it))
+    #s[2,0]= robot.get_Fz(sim)
+    v[2,0] = 10
+    for i in range(max_num_it):
+        if i>0:
+            v[2,i]=v[2,i-1]#+a[2,i-1]*T
+            s[2,i]=min(s[2,i-1]+v[2,i-1]*T,f_d)
+    return s
+
 # ------------ Helper functions --------------------------------
 
 

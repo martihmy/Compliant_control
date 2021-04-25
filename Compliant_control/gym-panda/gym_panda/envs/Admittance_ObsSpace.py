@@ -12,6 +12,7 @@ from gym_panda.envs import admittance_config as cfg
 class ObservationSpace:
     def __init__(self):
         #limits
+        """
         self.lower_B = cfg.LOWER_B
         self.upper_B = cfg.UPPER_B
         self.lower_K = cfg.LOWER_K
@@ -20,11 +21,19 @@ class ObservationSpace:
         self.upper_F_delta = cfg.UPPER_F_DELTA
         self.lower_delta_Xd = cfg.LOWER_DELTA_Xd
         self.upper_delta_Xd = cfg.UPPER_DELTA_Xd
+        """
+
+        self.lower_F = cfg.LOWER_F
+        self.upper_F = cfg.UPPER_F
+        self.lower_delta_x = cfg.LOWER_DELTA_X
+        self.upper_delta_x = cfg.UPPER_DELTA_X
+        self.lower_vel = cfg.LOWER_VEL
+        self.upper_vel = cfg.UPPER_VEL
 
 
     def get_space_box(self):
-        lower = np.array([self.lower_B, self.lower_K,self.lower_F_delta,self.lower_F_delta,self.lower_F_delta,self.lower_delta_Xd,self.lower_delta_Xd ])
-        upper = np.array([self.upper_B, self.upper_K,self.upper_F_delta,self.upper_F_delta,self.upper_F_delta,self.upper_delta_Xd,self.upper_delta_Xd ])
+        lower = np.array([self.lower_F,self.lower_delta_x,self.lower_vel ])
+        upper = np.array([self.upper_F, self.upper_delta_x,self.upper_vel])
 
 
 

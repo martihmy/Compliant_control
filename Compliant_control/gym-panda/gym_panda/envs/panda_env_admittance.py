@@ -1,7 +1,7 @@
 import gym
 #from gym import ...
 from gym_panda.envs import admittance_functionality as af
-from gym_panda.envs.Gym_basics_Admittance import ObservationSpace
+from gym_panda.envs.Admittance_ObsSpace import ObservationSpace
 from gym_panda.envs import admittance_config as cfg
 from panda_robot import PandaArm
 from gym import spaces
@@ -35,7 +35,7 @@ import matplotlib.pyplot as plt
 
 """ end of parameters"""
 
-class PandaEnv(gym.Env):
+class AdmittanceEnv(gym.Env):
     #metadata = {'render.modes': ['human']}
 
     def __init__(self):
@@ -44,7 +44,7 @@ class PandaEnv(gym.Env):
     
 
         #self.increment = cfg.INCREMENT
-        self.action_space = spaces.Box(low= -1, high = 1, shape=(2,)) #spaces.Discrete(9)
+        self.action_space = spaces.Box(low= cfg.ACTION_LOW, high = cfg.ACTION_HIGH, shape=(2,)) #spaces.Discrete(9)
         self.observation_space_container= ObservationSpace()
         self.observation_space = self.observation_space_container.get_space_box()
         self.max_num_it = cfg.MAX_NUM_IT 
@@ -60,7 +60,7 @@ class PandaEnv(gym.Env):
         #set desired pose/force trajectory
         self.goal_ori = self.robot.endpoint_pose()['orientation'] # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
         self.x_d = af.generate_desired_trajectory_tc(self.robot,self.max_num_it,cfg.T,move_in_x=True)
-        self.F_d = af.generate_F_d_constant(self.robot,self.max_num_it,cfg.T,self.sim)     #af.generate_Fd_smooth(self.robot,self.max_num_it,cfg.T,self.sim)
+        self.F_d = af.generate_F_d_steep(self.max_num_it,cfg.T,cfg.Fd)# generate_F_d_constant(self.robot,self.max_num_it,cfg.T,self.sim)     #af.generate_Fd_smooth(self.robot,self.max_num_it,cfg.T,self.sim)
         self.x = self.x_d[:,0]
 
         self.F_error_list = np.zeros((3,3))
@@ -73,6 +73,7 @@ class PandaEnv(gym.Env):
         self.B = cfg.B_START
         self.K = cfg.K_START
         self.Fz = 0
+        self.Fz_offset = self.robot.get_Fz(self.sim)
         self.F_history = np.zeros(cfg.F_WINDOW_SIZE)
         self.delta_F_history = np.zeros(cfg.DELTA_F_WINDOW_SIZE)
        
@@ -132,10 +133,11 @@ class PandaEnv(gym.Env):
         #set desired pose/force trajectory
         self.goal_ori = self.robot.endpoint_pose()['orientation'] # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
         self.x_d = af.generate_desired_trajectory_tc(self.robot,self.max_num_it,cfg.T,move_in_x=True)
-        self.F_d = af.generate_Fd_smooth(self.robot,self.max_num_it,cfg.T,self.sim)
+        self.F_d = af.generate_F_d_steep(self.max_num_it,cfg.T,cfg.Fd)#af.generate_F_d_constant(self.robot,self.max_num_it,cfg.T,self.sim)
 
         self.x = self.x_d[:,0]
         self.Fz = 0
+        self.Fz_offset = self.robot.get_Fz(self.sim)
         self.F_error_list = np.zeros((3,3))
         self.E = np.zeros(3)
         self.E_history = np.zeros((3,3))
@@ -151,8 +153,8 @@ class PandaEnv(gym.Env):
         self.history = np.zeros((12,self.max_num_it))
         self.history[1,:] = self.F_d[2,:self.max_num_it]
         self.history[9,:] = self.x_d[0,:self.max_num_it]
-        self.history[10,:] = self.x_d[0,:self.max_num_it]
-        self.history[11,:] = self.x_d[0,:self.max_num_it]
+        self.history[10,:] = self.x_d[1,:self.max_num_it]
+        self.history[11,:] = self.x_d[2,:self.max_num_it]
 
         self.state = self.get_pure_states() # self.get_compact_state()
         return np.array(self.state)
@@ -170,7 +172,7 @@ class PandaEnv(gym.Env):
         return tuple(state_list)
 
     def get_compact_state(self):
-        F = self.robot.get_Fz(self.sim)
+        F = self.robot.get_Fz(self.sim)-self.history
         self.delta_F_history = np.append(F-self.F_d[2,self.iteration],self.delta_F_history[:cfg.DELTA_F_WINDOW_SIZE-1])
         net_F_to_future = F - self.F_d[2,self.iteration + cfg.Fd_HORIZON]
         delta_xd_now = self.x_d[0,self.iteration+1] - self.x_d[0,self.iteration]
@@ -180,10 +182,11 @@ class PandaEnv(gym.Env):
 
     def get_pure_states(self):
         self.update_pos_and_force()
-        F = self.robot.get_Fz(self.sim)
+        #F = self.robot.get_Fz(self.sim)
         delta_p_z = self.x[2] - self.x_d[2,0]
         vel_z = self.x[2] - self.history[6,self.iteration-1] # current x_z minus last recorded x_z
-        state_list = [F, delta_p_z, vel_z]
+        vel_z_ros = self.robot.endpoint_velocity()['linear'][2]
+        state_list = [self.Fz, delta_p_z, vel_z_ros]
         return tuple(state_list)
 
 
@@ -191,6 +194,7 @@ class PandaEnv(gym.Env):
     def update_pos_and_force(self):
         robot = self.robot
         self.x, self.Fz = robot.fetch_states_admittance(self.sim)
+        self.Fz -= self.Fz_offset
 
     def update_history(self):
         self.history[0,self.iteration] = self.Fz
@@ -240,13 +244,13 @@ class PandaEnv(gym.Env):
 
 
     def update_stiffness_and_damping(self,action):
-        self.B = self.B + action[0]
-        if self.B > cfg.UPPER_B: self.B = cfg.UPPER_B
-        if self.B < cfg.LOWER_B: self.B = cfg.LOWER_B
+        self.B = cfg.B_START + action[0]
+        #if self.B > cfg.UPPER_B: self.B = cfg.UPPER_B
+        #if self.B < cfg.LOWER_B: self.B = cfg.LOWER_B
         
-        self.K = self.K + action[1]
-        if self.K > cfg.UPPER_K: self.K = cfg.UPPER_K
-        if self.K < cfg.LOWER_K: self.K = cfg.LOWER_K
+        self.K = cfg.K_START + action[1]
+        #if self.K > cfg.UPPER_K: self.K = cfg.UPPER_K
+        #if self.K < cfg.LOWER_K: self.K = cfg.LOWER_K
 
 
     def plot_run(self):
@@ -316,7 +320,7 @@ class PandaEnv(gym.Env):
 
 class Normalised_Env():
     def __init__(self, env_id, m, std):
-        self.env = make(env_id).env # same as gym.make?
+        self.env = gym.make(env_id)
         self.action_space = self.env.action_space
         self.observation_space = self.env.observation_space
         self.m = m
@@ -326,8 +330,8 @@ class Normalised_Env():
         return np.divide(x-self.m, self.std)
 
     def step(self, action):
-        ob, r, done, _ = self.env.step(action)
-        return self.state_trans(ob), r, done, {}
+        ob, r, done, plot_data = self.env.step(action)
+        return self.state_trans(ob), r, done, plot_data
 
     def reset(self):
         ob =  self.env.reset()
