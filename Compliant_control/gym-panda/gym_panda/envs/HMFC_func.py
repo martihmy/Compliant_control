@@ -94,6 +94,14 @@ def generate_Fd_steep(max_num_it,T,f_d):
 
     return a,v,s
 
+
+# Generate a constant desired force [STABLE]
+def generate_Fd_constant(max_num_it):
+    a = np.zeros(max_num_it)
+    v = np.zeros(max_num_it)
+    s = np.zeros(max_num_it)+3
+    return a,v,s
+
 # ------------ Helper functions --------------------------------
 
 # Compute difference between quaternions and return Euler angles as difference
@@ -166,7 +174,7 @@ def get_f_lambda(f_d_ddot, f_d_dot, f_d, i,time_per_iteration, S_f,C,K_Dlambda,K
     lambda_a = f_d_ddot
     lambda_b = np.array(np.dot(K_Dlambda,(f_d_dot-lambda_dot)))
     lambda_c = np.dot(K_Plambda,(f_d-z_force))
-    return lambda_a + lambda_b + lambda_c
+    return max(lambda_a + lambda_b + lambda_c,0)
 
 # Calculate alpha_v (part of equation 9.62) as on page 213 in chapter 9.3 of The Handbook of Robotics
 def calculate_alpha_v(i, ori, goal_ori, r_d_ddot, r_d_dot, p,p_d,K_Pr,K_Dr,v):
@@ -205,52 +213,6 @@ def get_Fz(sim=False):
         return -robot.endpoint_effort()['force'][2]
 
 # -------------- Main functions --------------------
-
-# Low-pass filter
-def real_time_filter(value,z,b):
-    filtered_value, z = signal.lfilter(b, 1, [value], zi=z)
-    return filtered_value,z
-
-
-# Update the list of the last three recorded force errors
-def update_F_error_list(F_error_list,F_d,Fz,sim): #setting forces in x and y = 0
-    for i in range(3): #update for x, then y, then z
-        F_error_list[i][2]=F_error_list[i][1]
-        F_error_list[i][1]=F_error_list[i][0]
-        if i ==2:
-            F_error_list[i][0] = Fz-F_d[i]
-        else:
-            F_error_list[i][0] = 0
-
-
-# Update the list of the last three E-calculations
-def update_E_history(E_history, E):
-    for i in range(3):
-        E_history[i][1]=E_history[i][0]
-        E_history[i][0] = E[i]
-    return E_history
-
-# Calculate E (as in 'step 8' of 'algorithm 2' in Lahr2016 [Understanding the implementation of Impedance Control in Industrial Robots] )
-def calculate_E(i,time_per_iteration,E_history, F_e_history,M,B,K):
-    if i < 1:
-        return np.array([0,0,0])
-    T = time_per_iteration[i]-time_per_iteration[i-1]
-    x_z = (T**2 * F_e_history[2][0] + 2* T**2 * F_e_history[2][1]+ T**2 * F_e_history[2][2]-(2*K*T**2-8*M)*E_history[2][0]-(4*M -2*B*T+K*T**2)*E_history[2][1])/(4*M+2*B*T+K*T**2)
-    return np.array([0,0,x_z]) 
-
-# Perform position control with the compliant position (x_c = x_d + E) as input
-def perform_joint_position_control(robot,x_d,E,ori):
-    x_c = x_d + E
-    desired_joint_angles = robot.inverse_kinematics(x_c,ori=ori)[1]
-    #joint_angles = robot.joint_ordered_angles()
-
-    robot.exec_position_cmd(desired_joint_angles)
-
-
-
-
-
-
 
 
 

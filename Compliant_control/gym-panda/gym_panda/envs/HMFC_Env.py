@@ -19,7 +19,6 @@ import matplotlib.pyplot as plt
 
 
 class HMFC_Env(gym.Env):
-    #metadata = {'render.modes': ['human']}
 
     def __init__(self):
         #only in __init()
@@ -30,10 +29,9 @@ class HMFC_Env(gym.Env):
         self.max_num_it = cfg.MAX_NUM_IT
 
 
-        self.time_per_iteration = np.zeros(self.max_num_it) 
-
             #control
         self.S_f = np.array([[0, 0, 1, 0, 0, 0]]).reshape([6,1])
+        
         self.S_v = np.array([[1, 0, 0, 0, 0],
                             [0, 1, 0, 0, 0],
                             [0, 0, 0, 0, 0],
@@ -47,7 +45,9 @@ class HMFC_Env(gym.Env):
                         [0, 0, 0, 5, 0, 0],
                         [0, 0, 0, 0, 5, 0],
                         [0, 0, 0, 0, 0, 1]]).reshape([6,6])
+
         self.C = np.linalg.inv(self.K)
+
         self.Kp_lambda = cfg.KP_LAMBDA_INIT
         self.Kd_lambda = cfg.KD_LAMBDA_INIT
         self.Kp_r = cfg.Kp_r
@@ -55,17 +55,19 @@ class HMFC_Env(gym.Env):
 
 
 
-        #also in reset()
+       
             #setup
         rospy.init_node("HMFC")
         self.rate = rospy.Rate(cfg.PUBLISH_RATE)
         self.robot = ArmInterface()
         self.joint_names=self.robot.joint_names()
+
+        #also in reset()
         self.robot.move_to_start(cfg.ALTERNATIVE_START,self.sim)
 
 
             #set desired pose/force trajectory
-        self.f_d_ddot,self.f_d_dot, self.f_d= func.generate_Fd_steep(self.max_num_it,cfg.T,cfg.Fd)  
+        self.f_d_ddot,self.f_d_dot, self.f_d= func.generate_Fd_constant(self.max_num_it)#func.generate_Fd_steep(self.max_num_it,cfg.T,cfg.Fd)  
         self.goal_ori = self.robot.endpoint_pose()['orientation'] # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
         self.r_d_ddot, self.r_d_dot, self.p_d  = func.generate_desired_trajectory(self.robot,self.max_num_it,cfg.T,move_in_x=True)
         
@@ -95,6 +97,7 @@ class HMFC_Env(gym.Env):
         self.time_per_iteration[self.iteration] = rospy.get_time()
         self.F, self.h_e, self.ori, self.p, self.x, self.J, self.v = self.robot.get_HMFC_states(self.x_hist,self.iteration,self.time_per_iteration, self.goal_ori, self.sim)
         self.F -= self.F_offset
+        self.h_e[2] -=  self.F_offset
         # add new state to history
         self.p_hist[:,self.iteration],self.x_hist[:,self.iteration],self.h_e_hist[:,self.iteration] = self.p,self.x, self.h_e
         
@@ -115,8 +118,7 @@ class HMFC_Env(gym.Env):
         # Gym-related..
         self.iteration +=1
         reward = 0
-        rate = self.rate
-        rate.sleep()
+        
 
         if self.iteration >= self.max_num_it:
             done = True
@@ -128,27 +130,24 @@ class HMFC_Env(gym.Env):
             placeholder = None
 
         self.state = self.robot.get_state_space_HMFC(self.p_z_init,self.F_offset)
-
+        rate = self.rate
+        rate.sleep()
 
         return np.array(self.state), reward, done, placeholder
 
 
     def reset(self):
 
-        rospy.init_node("HMFC")
-        self.rate = rospy.Rate(cfg.PUBLISH_RATE)
-        self.robot = ArmInterface()
-        self.joint_names=self.robot.joint_names()
         self.robot.move_to_start(cfg.ALTERNATIVE_START,self.sim)
 
 
             #set desired pose/force trajectory
-        self.f_d_ddot,self.f_d_dot, self.f_d= func.generate_Fd_steep(self.max_num_it,cfg.T,cfg.Fd)  
+        self.f_d_ddot,self.f_d_dot, self.f_d= self.f_d_ddot,self.f_d_dot, self.f_d= func.generate_Fd_constant(self.max_num_it)  
         self.goal_ori = self.robot.endpoint_pose()['orientation'] # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
         self.r_d_ddot, self.r_d_dot, self.p_d  = func.generate_desired_trajectory(self.robot,self.max_num_it,cfg.T,move_in_x=True)
         
         
-
+        # reset data
         self.iteration = 0
         self.time_per_iteration = np.zeros(self.max_num_it)
         self.x_hist = np.zeros((5,self.max_num_it))
@@ -166,6 +165,8 @@ class HMFC_Env(gym.Env):
         #array with data meant for plotting
         self.data_for_plotting = np.zeros((13,self.max_num_it))
 
+        self.state = self.robot.get_state_space_HMFC(self.p_z_init,self.F_offset)
+        return np.array(self.state)
 
 
 

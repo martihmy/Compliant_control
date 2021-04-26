@@ -91,8 +91,9 @@ if __name__ == "__main__":
 		done= False
 	    #steps = 0
 		x = env.reset()
-		while done==False:
-			u = [0.045,45]#agent.get_action()
+        u = [0.05,25]#[0.045,45]
+        while done==False:
+            #u = agent.get_action()
 			x_new, reward, done, info = env.step(u)
 			#X.append(np.hstack((np.hstack(x), u)))#.tolist())
 			#Y.append(np.hstack(x_new)-np.hstack(x))#.tolist())
@@ -103,8 +104,4 @@ if __name__ == "__main__":
 		    #env.render()		
 		#env.display_environment()
 		#state = env.reset()
-		plot_result(info)
-		"""print('')
-		print('X looks like this:	',X)
-		print('')
-		print('Y looks like this:	',Y)"""
+        plot_result(info)
