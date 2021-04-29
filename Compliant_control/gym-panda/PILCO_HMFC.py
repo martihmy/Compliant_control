@@ -13,7 +13,7 @@ from pilco.rewards import ExponentialReward
 import tensorflow as tf
 from gpflow import set_trainable
 np.random.seed(0)
-from examples.utils import policy, rollout#, Normalised_Env
+from examples.utils import policy#, rollout#, Normalised_Env
 
 np.set_printoptions(precision=2)
 
@@ -29,7 +29,7 @@ This script is running the Hybrid Motion/Force Controller in the PILCO/Gym-inter
 3) The resulting model is used to find a policy for how to adjust damping and stiffness
 """
 
-def plot_run(data):
+def plot_run(data,list_of_limits):
 
     # prepare data for iteration duration
     adjusted_time_per_iteration = data[10,:] - data[10,0]
@@ -74,15 +74,20 @@ def plot_run(data):
 
     plt.subplot(235)
     plt.title("Varying damping")
+    plt.axhline(y=list_of_limits[1], label = 'upper bound', color='C1', linestyle = 'dashed')
     plt.plot(data[11], label = "damping over time")
+    plt.axhline(y=list_of_limits[0], label = 'lower bound', color='C1', linestyle = 'dashed')
     plt.xlabel("iterations")
     plt.legend()
 
     plt.subplot(236)
     plt.title("Varying stiffness")
+    plt.axhline(y=list_of_limits[3], label = 'upper bound', color='C1', linestyle = 'dashed')
     plt.plot(data[12], label = "stiffness over time")
+    plt.axhline(y=list_of_limits[2], label = 'lower bound', color='C1', linestyle = 'dashed')
     plt.xlabel("iterations")
     plt.legend()
+	print('\a')
 
     plt.show()
 
@@ -94,13 +99,13 @@ def rollout_panda_norm(gateway, state_dim, X1, pilco, verbose=False, random=Fals
 		import gym_panda
 		import numpy as np
 		from gym_panda.envs import HMFC_config as cfg
-		from gym_panda.envs.panda_env_admittance import Normalised_Env
+		from gym_panda.envs.HMFC_Env import Normalised_HMFC_Env
 
 		X1 = np.array(channel.receive())
 		state_dim = %s
 		m = np.mean(X1[:,:state_dim],0)
 		std = np.std(X1[:,:state_dim],0)
-		env = Normalised_Env('panda-HMFC-v0',m,std)
+		env = Normalised_HMFC_Env('panda-HMFC-v0',m,std)
 		X=[]; Y =  [];
 		x = env.reset() # x is a np.array
 		
@@ -116,8 +121,11 @@ def rollout_panda_norm(gateway, state_dim, X1, pilco, verbose=False, random=Fals
 			channel.send(states.tolist())
 			
 			u = channel.receive()		#u = policy(env, pilco, x, random)
+			new_B = u[0]*0.02+0.03
+			new_K = u[1]*20 +40
+			scaled_u = [new_B, new_K]
 			for i in range(SUBS):
-				x_new, r, done, plot_data = env.step(u)
+				x_new, r, done, plot_data = env.step(scaled_u)
 				ep_return_full += r											#NORM-ROLLOUT
 				if done: break
 
@@ -182,8 +190,11 @@ def rollout_panda(gateway, pilco, verbose=False, random=False, SUBS=1, render=Fa
 			channel.send(states.tolist())
 			
 			u = channel.receive()		#u = policy(env, pilco, x, random)
+			new_B = u[0]*0.02+0.03
+			new_K = u[1]*20 +40
+			scaled_u = [new_B, new_K]
 			for i in range(SUBS):
-				x_new, r, done, plot_data = env.step(u)
+				x_new, r, done, plot_data = env.step(scaled_u)
 				ep_return_full += r
 				if done: break
 
@@ -227,26 +238,35 @@ KD_LAMBDA_UPPER = 0.05
 KP_LAMBDA_LOWER = 20
 KP_LAMBDA_UPPER = 60 # must match the value of ACTION_HIGH in config
 
+list_of_limits = np.array([KD_LAMBDA_LOWER, KD_LAMBDA_UPPER, KP_LAMBDA_LOWER, KP_LAMBDA_UPPER ])
+
 def policy_0(pilco, x, is_random):
 	if is_random:
-		return [random.uniform(KD_LAMBDA_LOWER,KD_LAMBDA_UPPER),random.uniform(KP_LAMBDA_LOWER,KP_LAMBDA_UPPER)] #random in range cfg.action-space IS
+		#return [random.uniform(KD_LAMBDA_LOWER,KD_LAMBDA_UPPER),random.uniform(KP_LAMBDA_LOWER,KP_LAMBDA_UPPER)] #random in range cfg.action-space IS
+		return [random.uniform(-1,1),random.uniform(-1,1),] #the actions are scaled inside of panda_rollout...
+		
 	else:
 		tensorflow_format = pilco.compute_action(x[None, :])[0, :]
 		numpy_format = tensorflow_format.numpy()
+		#new_B = numpy_format[0]*0.02+0.03
+		#new_K = numpy_format[1]*20 +40
+		#numpy_format = np.array([new_B, new_K])
+
 		return numpy_format.tolist()
 
 
 
 if __name__ == "__main__":
 	print('started PILCO_HMFC')
-
 	gw = execnet.makegateway("popen//python=python2.7")
-
+	
+	num_rollouts = 3
 	SUBS = "5"
+
 	print('starting first rollout')
 	
 	X1,Y1, _, _,T,data_for_plotting = rollout_panda(gw, pilco=None, random=True, SUBS=SUBS, render=False) # function imported from PILCO (EXAMPLES/UTILS)
-	#plot_run(data_for_plotting)
+	#plot_run(data_for_plotting,list_of_limits)
 
 	"""
 	These initial rollouts with "random=True" is just gathering data so that we can make a model of the systems dynamics (performing random actions)
@@ -255,15 +275,15 @@ if __name__ == "__main__":
 	"""
 
 	
-	num_rollouts = 2
 	print('gathering more data...')
+	
 	
 	for i in range(1,num_rollouts):
 		print('	- At rollout ',i+1, ' out of ',num_rollouts)
 		X1_, Y1_,_,_,_, data_for_plotting = rollout_panda(gw, pilco=None, random=True, SUBS=SUBS, render=False)
 		X1 = np.vstack((X1, X1_))
 		Y1 = np.vstack((Y1, Y1_))
-		plot_run(data_for_plotting)
+		#plot_run(data_for_plotting, list_of_limits)
 	
 	
 	
@@ -299,7 +319,7 @@ if __name__ == "__main__":
 	norm_env_std = np.load('/home/martin/Pilco_std.npy')
 	state_dim = 3
 	control_dim = 2
-	T = 50
+	T = 100
 	"""
 
 	m_init =  np.transpose(X[0,:-control_dim,None])
@@ -309,13 +329,15 @@ if __name__ == "__main__":
 	target = np.zeros(state_dim)
 	target[0] = 3 #desired force (must also be specified in the controller as this one is just related to rewards)
 	W_diag = np.zeros(state_dim)
-	W_diag[0] = 1
+	W_diag[0],W_diag[3] = 1, 0.2
+
 
 
 	R = ExponentialReward(state_dim=state_dim, t=np.divide(target - norm_env_m, norm_env_std),W=np.diag(W_diag))
 
 
-	pilco = PILCO((X, Y), controller=controller, horizon=T, reward=R, m_init=m_init, S_init=S_init)
+	pilco = PILCO((X, Y), controller=controller, horizon=int(T/4), reward=R, m_init=m_init, S_init=S_init)
+	#pilco = PILCO((X1, Y1), controller=controller, horizon=T, reward=R, m_init=m_init, S_init=S_init)
 
 	best_r = 0
 	all_Rs = np.zeros((X.shape[0], 1))
@@ -337,10 +359,10 @@ if __name__ == "__main__":
 		print('	- optimizing models...')
 		pilco.optimize_models()
 		print('	- optimizing policy...')
-		pilco.optimize_policy(maxiter=25, restarts=0) #(maxiter=100, restarts=3) # 4 minutes when (1,0) #RESTART PROBLEMATIC? (25)
+		pilco.optimize_policy(maxiter=25, restarts=1) #(maxiter=100, restarts=3) # 4 minutes when (1,0) #RESTART PROBLEMATIC? (25)
 		#import pdb; pdb.set_trace()
-		X_new, Y_new, _, _, plot_data = rollout_panda_norm(gw, state_dim, X1, pilco=pilco, SUBS=SUBS, render=False)
-		
+		X_new, Y_new, _, _, data_for_plotting = rollout_panda_norm(gw, state_dim, X1, pilco=pilco, SUBS=SUBS, render=False)
+		#X_new,Y_new, _, _,_,data_for_plotting = rollout_panda(gw, pilco=pilco, random=False, SUBS=SUBS, render=False)
 		
 		for i in range(len(X_new)):
 			r_new[:, 0] = R.compute_reward(X_new[i,None,:-control_dim], 0.001 * np.eye(state_dim))[0] #-control_dim
@@ -352,6 +374,8 @@ if __name__ == "__main__":
 		X = np.vstack((X, X_new)); Y = np.vstack((Y, Y_new))
 		all_Rs = np.vstack((all_Rs, r_new)); ep_rewards = np.vstack((ep_rewards, np.reshape(total_r,(1,1))))
 		pilco.mgpr.set_data((X, Y))
+		#pilco.mgpr.set_data((X_new, Y_new))
+	plot_run(data_for_plotting, list_of_limits)
 	
-	plot_run(plot_data)
+	
 		
