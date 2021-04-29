@@ -105,9 +105,18 @@ class HMFC_Env(gym.Env):
         # perform action
         self.Kd_lambda = action[0]
         self.Kp_lambda = action[1]
+
         # add action to record (plotting purposes)
         self.Kd_lambda_hist[self.iteration] = self.Kd_lambda
         self.Kp_lambda_hist[self.iteration] = self.Kp_lambda
+
+        # In the PILCO-algorithm, the limits seem to be ignored. Fixing it here
+        if self.Kd_lambda > cfg.KD_LAMBDA_UPPER: self.Kd_lambda = cfg.KD_LAMBDA_UPPER
+        elif self.Kd_lambda < cfg.KD_LAMBDA_LOWER: self.Kd_lambda = cfg.KD_LAMBDA_LOWER
+        
+        if self.Kp_lambda > cfg.KP_LAMBDA_UPPER: self.Kp_lambda = cfg.KP_LAMBDA_UPPER
+        elif self.Kp_lambda < cfg.KP_LAMBDA_LOWER: self.Kp_lambda = cfg.KP_LAMBDA_LOWER
+        
 
         # calculate torque
         f_lambda = func.get_f_lambda(self.f_d_ddot[self.iteration], self.f_d_dot[self.iteration], self.f_d[self.iteration], self.iteration,self.time_per_iteration, self.S_f,self.C,self.Kd_lambda,self.Kp_lambda,self.F,self.h_e_hist,self.J,self.joint_names,self.sim)
@@ -116,11 +125,11 @@ class HMFC_Env(gym.Env):
         self.robot.perform_torque_HMFC(alpha,self.J,self.h_e,self.joint_names)
 
         # Gym-related..
-        self.iteration +=1
+        
         reward = 0
         
 
-        if self.iteration >= self.max_num_it:
+        if self.iteration >= self.max_num_it-1:
             done = True
             self.update_data_for_plotting()
             placeholder = self.data_for_plotting
@@ -129,7 +138,8 @@ class HMFC_Env(gym.Env):
             done = False
             placeholder = None
 
-        self.state = self.robot.get_state_space_HMFC(self.p_z_init,self.F_offset)
+        self.state = self.robot.get_state_space_HMFC(self.p_z_init,self.F_offset,self.p_d[0,self.iteration])
+        self.iteration +=1
         rate = self.rate
         rate.sleep()
 
@@ -165,7 +175,7 @@ class HMFC_Env(gym.Env):
         #array with data meant for plotting
         self.data_for_plotting = np.zeros((13,self.max_num_it))
 
-        self.state = self.robot.get_state_space_HMFC(self.p_z_init,self.F_offset)
+        self.state = self.robot.get_state_space_HMFC(self.p_z_init,self.F_offset,self.p_d[0,self.iteration])
         return np.array(self.state)
 
 
@@ -188,7 +198,7 @@ class HMFC_Env(gym.Env):
 
 
     
-class Normalised_Env():
+class Normalised_HMFC_Env():
     def __init__(self, env_id, m, std):
         self.env = gym.make(env_id)
         self.action_space = self.env.action_space
@@ -209,3 +219,5 @@ class Normalised_Env():
 
     def render(self):
         self.env.render()
+
+
