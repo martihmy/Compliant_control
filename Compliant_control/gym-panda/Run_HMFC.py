@@ -79,22 +79,22 @@ class Agent():
 		return self.action_space.sample()
 
 if __name__ == "__main__":
-	print('started')
-	env = gym.make('panda-HMFC-v0')
-	agent = Agent(env.action_space)
-	number_of_runs = 1
- 
+    print('started')
+    env = gym.make('panda-HMFC-v0')
+    agent = Agent(env.action_space)
+    number_of_runs = 1
 
 	#X=[]; Y =  [];
-	for episode in range(number_of_runs):
-		print('starting run ', episode+1, ' /',number_of_runs)
-		done= False
-	    #steps = 0
-		x = env.reset()
-        u = [0.05,25]#[0.045,45]
+    for episode in range(number_of_runs):
+        print('starting run ', episode+1, ' /',number_of_runs)
+        done= False
+        #steps = 0
+        x = env.reset()
+        u = [random.uniform(0,30),random.uniform(10,80), 50]#[0.045,45]
         while done==False:
             #u = agent.get_action()
-			x_new, reward, done, info = env.step(u)
+            u = [random.uniform(0,30),random.uniform(10,80), 100]#[0.045,45]
+            x_new, reward, done, info = env.step(u)
 			#X.append(np.hstack((np.hstack(x), u)))#.tolist())
 			#Y.append(np.hstack(x_new)-np.hstack(x))#.tolist())
 			#X.append(np.hstack((np.hstack(x), u)).tolist())

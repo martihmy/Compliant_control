@@ -164,13 +164,14 @@ def get_delta_r(ori,goal_ori, p, p_d, two_dim = True):
 # ------------ Main functions --------------------------------------
 
 # Calculate f_lambda (part of equation 9.62) as in equation (9.65) in chapter 9.3 of The Handbook of Robotics
-def get_f_lambda(f_d_ddot, f_d_dot, f_d, i,time_per_iteration, S_f,C,K_Dlambda,K_Plambda, z_force,h_e_hist,jacobian,joint_names,sim):
+def get_f_lambda(f_d_ddot, f_d_dot, f_d, i,time_per_iteration, S_f,C,K_Dlambda,K_Plambda, z_force,h_e_hist,jacobian,joint_v,joint_names,sim):
     S_f_inv = get_S_inv(S_f,C)
     K_dot = get_K_dot(S_f,S_f_inv,C)
     if sim: 
-       lambda_dot = get_lambda_dot(S_f_inv,h_e_hist,i,time_per_iteration)
+       #lambda_dot = get_lambda_dot(S_f_inv,h_e_hist,i,time_per_iteration)
+       lambda_dot = (np.linalg.multi_dot([S_f_inv,K_dot,jacobian,joint_v]))
     else: 
-        lambda_dot = (np.linalg.multi_dot([S_f_inv,K_dot,jacobian,get_joint_velocities(joint_names)])) # At least not correct for interaction tasks in simulation (due to incorrect readings of joint velocity)
+        lambda_dot = (np.linalg.multi_dot([S_f_inv,K_dot,jacobian,joint_v])) # At least not correct for interaction tasks in simulation (due to incorrect readings of joint velocity)
     lambda_a = f_d_ddot
     lambda_b = np.array(np.dot(K_Dlambda,(f_d_dot-lambda_dot)))
     lambda_c = np.dot(K_Plambda,(f_d-z_force))

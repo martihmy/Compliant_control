@@ -199,7 +199,7 @@ def generate_Fd_constant(max_num_it,T,sim=False):
     a = np.zeros(max_num_it)
     v = np.zeros(max_num_it)
     s = np.zeros(max_num_it)
-    s[0]= get_lambda(sim)+5
+    s[0]= get_lambda(sim)+3
 
     for i in range(max_num_it):
         if i>0:
@@ -538,7 +538,7 @@ if __name__ == "__main__":
 
     # Specify the desired behaviour of the robot
     r_d_ddot, r_d_dot, p_d = generate_desired_trajectory_tc(max_num_it,T, move_in_x=True)
-    f_d_ddot,f_d_dot, f_d = generate_Fd_jump_and_steep(max_num_it,T,sim)
+    f_d_ddot,f_d_dot, f_d = generate_Fd_constant(max_num_it,T,sim)#generate_Fd_jump_and_steep(max_num_it,T,sim)
     goal_ori = np.asarray(robot.endpoint_pose()['orientation']) # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
 
 
