@@ -858,6 +858,82 @@ class ArmInterface(object):
         """
         return self._frames_interface
 
+    def move_to_start(self,alternative_position, sim):
+        if sim:
+            self.move_to_neutral()
+        else:
+            self.move_to_joint_positions(alternative_position)
+
+    def get_v(self, x_hist,i,time_per_iteration, numerically=False, two_dim=True):
+        if numerically == True:
+            if two_dim == True:
+                return get_derivative_of_vector(x_hist,i,time_per_iteration).reshape([5,1])
+            else:
+                return get_derivative_of_vector(x_hist,i,time_per_iteration)
+
+        else:
+            if two_dim == True:
+                return np.array([np.append(self.endpoint_velocity()['linear'][:2],self.endpoint_velocity()['angular'])]).reshape([5,1])
+            else:
+                return np.append(self.endpoint_velocity()['linear'][:2],self.endpoint_velocity()['angular'])
+
+    def get_HMFC_states(self,x_hist,i,time_per_iteration, goal_ori, joint_names, sim):
+        F = self.endpoint_effort()['force'][2]
+        if sim == False:
+            F = -F
+        h_e = np.array([0,0,F,0,0,0])
+        #h_e_hist[:,i] = h_e
+        ori = self.endpoint_pose()['orientation']
+        p = self.endpoint_pose()['position']
+        x = np.append(p[:2],quatdiff_in_euler_radians(np.asarray(ori), goal_ori))
+        J = self.zero_jacobian()
+        #if sim:
+         #   v = self.get_v(x_hist,i,time_per_iteration, numerically=True)
+        #else:
+        v = self.get_v(x_hist,i,time_per_iteration, numerically=False)
+        dict = self.joint_velocities()
+        joint_v = np.array([ dict[joint_names[0]],dict[joint_names[1]],dict[joint_names[2]],dict[joint_names[3]],dict[joint_names[4]],dict[joint_names[5]],dict[joint_names[6]]])
+        return F, h_e, ori, p, x, J, v, joint_v
+
+
+    # Calculate and perform the torque as in equation (9.16) in chapter 9.2 of The Handbook of Robotics
+    def perform_torque_HMFC(self, alpha,jacobian,h_e,joint_names):
+        cartesian_inertia = np.linalg.inv(np.linalg.multi_dot([jacobian,np.linalg.inv(self.joint_inertia_matrix()),jacobian.T]))
+        alpha_torque = np.array(np.linalg.multi_dot([jacobian.T,cartesian_inertia,alpha])).reshape([7,1])
+        external_torque = np.dot(jacobian.T,h_e).reshape([7,1])
+        torque = alpha_torque + self.coriolis_comp().reshape([7,1]) - external_torque
+        self.set_joint_torques(dict(list(zip(joint_names,torque))))
+
+    def get_state_space_HMFC(self,p_z_init,F_offset, p_x_d):
+        F = self.endpoint_effort()['force'][2]-F_offset
+        delta_p_z = self.endpoint_pose()['position'][2]-p_z_init
+        v_z = self.endpoint_velocity()['linear'][2]
+        x_error = self.endpoint_pose()['position'][0] - p_x_d
+        state_list = [F, delta_p_z, v_z, x_error]
+        return tuple(state_list)
+
+
+def quatdiff_in_euler_radians(quat_curr, quat_des):
+    curr_mat = quaternion.as_rotation_matrix(quat_curr)
+    des_mat = quaternion.as_rotation_matrix(quat_des)
+    rel_mat = des_mat.T.dot(curr_mat)
+    rel_quat = quaternion.from_rotation_matrix(rel_mat)
+    vec = quaternion.as_float_array(rel_quat)[1:]
+    if rel_quat.w < 0.0:
+        vec = -vec
+    return -des_mat.dot(vec)
+
+
+# Calculate the numerical derivative of a each row in a vector
+def get_derivative_of_vector(history,iteration,time_per_iteration):
+    size = history.shape[0]
+    if iteration > 0:
+        T = float(time_per_iteration[iteration]-time_per_iteration[iteration-1])
+        #return ((history[:,iteration]-history[:,iteration-1]).reshape([size,1])/T).reshape([size,1])
+        if T>0:
+            return np.subtract(history[:,iteration],history[:,iteration-1])/float(T)
+    
+    return np.zeros(size)#.reshape([size,1])
 
 if __name__ == '__main__':
     rospy.init_node('test')

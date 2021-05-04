@@ -14,7 +14,10 @@ import PILCO_admittance_utils as utils
 import tensorflow as tf
 from gpflow import set_trainable
 np.random.seed(0)
-from examples.utils import policy, rollout#, Normalised_Env
+#from examples.utils import policy, rollout#, Normalised_Env
+
+from save_load_utils import load_pilco_model
+from save_load_utils import save_pilco_model 
 
 np.set_printoptions(precision=2)
 
@@ -37,13 +40,11 @@ save_path = '/home/martin/PILCO/Compliant_panda/trained models/Admittance_model_
 if __name__ == "__main__":
 	print('started PILCO_admittance')
 
-	gw = execnet.makegateway("popen//python=python2.7")
-
 	SUBS = "5"
 	print('starting first rollout')
 	
-	X1,Y1, _, _,T,data_for_plotting = utils.rollout_panda(gw, pilco=None, random=True, SUBS=SUBS, render=False) # function imported from PILCO (EXAMPLES/UTILS)
-	utils.plot_run(data_for_plotting)
+	X1,Y1, _, _,T,data_for_plotting = utils.rollout_panda(utils.gw, pilco=None, random=True, SUBS=SUBS, render=False) # function imported from PILCO (EXAMPLES/UTILS)
+	#utils.plot_run(data_for_plotting)
 
 	"""
 	These initial rollouts with "random=True" is just gathering data so that we can make a model of the systems dynamics (performing random actions)
@@ -52,15 +53,15 @@ if __name__ == "__main__":
 	"""
 
 	
-	num_rollouts = 2
+	num_rollouts = 4
 	print('gathering more data...')
 	
 	for i in range(1,num_rollouts):
 		print('	- At rollout ',i+1, ' out of ',num_rollouts)
-		X1_, Y1_,_,_,_, data_for_plotting = utils.rollout_panda(gw, pilco=None, random=True, SUBS=SUBS, render=False)
+		X1_, Y1_,_,_,_, data_for_plotting = utils.rollout_panda(utils.gw, pilco=None, random=True, SUBS=SUBS, render=False)
 		X1 = np.vstack((X1, X1_))
 		Y1 = np.vstack((Y1, Y1_))
-		utils.plot_run(data_for_plotting)
+		#utils.plot_run(data_for_plotting)
 	
 	
 	
@@ -91,6 +92,7 @@ if __name__ == "__main__":
 	target[0] = 3 #desired force (must also be specified in the controller as this one is just related to rewards)
 	W_diag = np.zeros(state_dim)
 	W_diag[0] = 1
+	W_diag[3] = 2
 
 
 	R = ExponentialReward(state_dim=state_dim, t=np.divide(target - norm_env_m, norm_env_std),W=np.diag(W_diag))
@@ -120,7 +122,7 @@ if __name__ == "__main__":
 		print('	- optimizing policy...')
 		pilco.optimize_policy(maxiter=25, restarts=0) #(maxiter=100, restarts=3) # 4 minutes when (1,0) #RESTART PROBLEMATIC? (25)
 		#import pdb; pdb.set_trace()
-		X_new, Y_new, _, _, plot_data = utils.rollout_panda_norm(gw, state_dim, X1, pilco=pilco, SUBS=SUBS, render=False)
+		X_new, Y_new, _, _, plot_data = utils.rollout_panda_norm(utils.gw, state_dim, X1, pilco=pilco, SUBS=SUBS, render=False)
 		
 		
 		for i in range(len(X_new)):
@@ -136,7 +138,7 @@ if __name__ == "__main__":
 	
 	utils.plot_run(plot_data)
 
-	save_pilco_model(pilco,X1,X,Y,save_path)
+	save_pilco_model(pilco,X1,X,Y,save_path,rbf=False)
 
 	# Plot multi-step predictions manually
 	m_p = np.zeros((T, state_dim))

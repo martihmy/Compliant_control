@@ -174,7 +174,11 @@ class AdmittanceEnv(gym.Env):
         delta_p_z = self.x[2] - self.x_d[2,0]
         vel_z = self.x[2] - self.history[6,self.iteration-1] # current x_z minus last recorded x_z
         vel_z_ros = self.robot.endpoint_velocity()['linear'][2]
-        state_list = [self.Fz, delta_p_z, vel_z_ros]
+        if self.iteration > 1:
+            z_c_dot = self.history[7,self.iteration-1]- self.history[7,self.iteration-2]
+        else:
+            z_c_dot = 0
+        state_list = [self.Fz, delta_p_z, vel_z_ros, z_c_dot]
         return tuple(state_list)
 
 

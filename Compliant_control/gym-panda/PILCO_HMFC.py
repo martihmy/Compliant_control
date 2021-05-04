@@ -16,8 +16,11 @@ from gpflow import set_trainable
 np.random.seed(0)
 from examples.utils import policy#, rollout#, Normalised_Env
 import PILCO_HMFC_utils as utils
-from pilco.save_load_utils import load_pilco_model
-from pilco.save_load_utils import save_pilco_model
+#from pilco.save_load_utils import load_pilco_model
+#from pilco.save_load_utils import save_pilco_model
+
+from save_load_utils import load_pilco_model
+from save_load_utils import save_pilco_model
 np.set_printoptions(precision=2)
 
 
@@ -35,7 +38,7 @@ This script is running the Hybrid Motion/Force Controller in the PILCO/Gym-inter
 
 list_of_limits = utils.list_of_limits
 
-save_path = '/home/martin/PILCO/Compliant_panda/trained models/HMFC_model_and_policy_0'
+save_path = '/home/martin/PILCO/Compliant_panda/trained models/HMFC_test'
 
 F_weight = 1 #Degree of precision needed to get a decent reward
 
@@ -43,7 +46,7 @@ if __name__ == "__main__":
 	print('started PILCO_HMFC')
 	gw = execnet.makegateway("popen//python=python2.7")
 	
-	num_rollouts = 4
+	num_rollouts = 1
 	SUBS = "5"
 
 	print('starting first rollout')
