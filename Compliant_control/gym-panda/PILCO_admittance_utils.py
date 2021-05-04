@@ -13,7 +13,7 @@ from pilco.rewards import ExponentialReward
 import tensorflow as tf
 from gpflow import set_trainable
 np.random.seed(0)
-from examples.utils import policy, rollout#, Normalised_Env
+
 
 np.set_printoptions(precision=2)
 
@@ -28,6 +28,8 @@ This script is running the admittance controller in the PILCO/Gym-interface
 
 3) The resulting model is used to find a policy for how to adjust damping and stiffness
 """
+
+gw = execnet.makegateway("popen//python=python2.7")
 
 def plot_run(history):
 		print('     making plot...')
