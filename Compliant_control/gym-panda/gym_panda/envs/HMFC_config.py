@@ -11,6 +11,32 @@ SIM_STATUS = True
 
 #ACTION SPACE
 KD_LAMBDA_LOWER = 0
+KD_LAMBDA_UPPER = 3
+
+KP_LAMBDA_LOWER = 10
+KP_LAMBDA_UPPER = 90
+
+KP_POS_LOWER = 125
+KP_POS_UPPER =  175
+
+#initialization
+
+KD_LAMBDA_INIT = 1
+KP_LAMBDA_INIT = 15
+KP_POS_INIT = 150
+
+#CONTROL PARAMETERS FOR POSITION
+
+#with time.sleep(0.4):
+#Kp_p = 50#60#120#60
+Kp_o = 200#120#150#120
+Kd_p = 35#30#20#10#0.01#2#60*0.025
+Kd_o = 0#1#5#40
+
+
+#with no delay (old values):
+"""
+KD_LAMBDA_LOWER = 0
 KD_LAMBDA_UPPER = 30
 
 KP_LAMBDA_LOWER = 10
@@ -25,12 +51,12 @@ KD_LAMBDA_INIT = 0.03
 KP_LAMBDA_INIT = 30
 KP_POS_INIT = 50
 
-#CONTROL PARAMETERS FOR POSITION
+Kp_o = 200
+Kd_p = 10
+Kd_o = 1
+"""
 
-#Kp_p = 50#60#120#60
-Kp_o = 200#120#150#120
-Kd_p = 10#0.01#2#60*0.025
-Kd_o = 1#5#40
+
 """
 Kp_r_init = np.array([[Kp_p, 0, 0, 0, 0], # Stiffness matrix
                 [0, Kp_p, 0, 0, 0],

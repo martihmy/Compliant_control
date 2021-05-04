@@ -33,19 +33,11 @@ This script is running the Hybrid Motion/Force Controller in the PILCO/Gym-inter
 """
 
 
-# must match the value of ACTION_SPACE in config
-KD_LAMBDA_LOWER = 0
-KD_LAMBDA_UPPER = 30
+list_of_limits = utils.list_of_limits
 
-KP_LAMBDA_LOWER = 10
-KP_LAMBDA_UPPER = 110
+save_path = '/home/martin/PILCO/Compliant_panda/trained models/HMFC_model_and_policy_0'
 
-KP_POS_LOWER = 100
-KP_POS_UPPER =  150
-
-list_of_limits = np.array([KD_LAMBDA_LOWER, KD_LAMBDA_UPPER, KP_LAMBDA_LOWER, KP_LAMBDA_UPPER, KP_POS_LOWER, KP_POS_UPPER ])
-
-
+F_weight = 1 #Degree of precision needed to get a decent reward
 
 if __name__ == "__main__":
 	print('started PILCO_HMFC')
@@ -101,7 +93,7 @@ if __name__ == "__main__":
 	target = np.zeros(state_dim)
 	target[0] = 3 #desired force (must also be specified in the controller as this one is just related to rewards)
 	W_diag = np.zeros(state_dim)
-	W_diag[0],W_diag[3] = 1, 0
+	W_diag[0],W_diag[3] = F_weight, 0
 
 
 
@@ -150,8 +142,8 @@ if __name__ == "__main__":
 		#pilco.mgpr.set_data((X_new, Y_new))
 	utils.plot_run(data_for_plotting, list_of_limits)
 
-	path = '/home/martin/PILCO/Compliant_panda/trained models/HMFC_2'
-	save_pilco_model(pilco,X1,X,Y,path)
+	
+	save_pilco_model(pilco,X1,X,Y,save_path)
 
 	# Plot multi-step predictions manually
 	m_p = np.zeros((T, state_dim))

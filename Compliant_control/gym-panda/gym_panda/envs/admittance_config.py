@@ -24,7 +24,7 @@ SIM_STATUS = True
 Fd = 3
 PUBLISH_RATE = 50
 T = 0.001*(1000/PUBLISH_RATE) # The control loop's time step
-duration = 0.5#2#10#15
+duration = 5#2#10#15
 MAX_NUM_IT = int(duration*PUBLISH_RATE)
 
 ALTERNATIVE_START = af.cartboard

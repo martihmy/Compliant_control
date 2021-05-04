@@ -93,8 +93,7 @@ class HMFC_Env(gym.Env):
         #array with data meant for plotting
         self.data_for_plotting = np.zeros((14,self.max_num_it))
 
-        
-        
+              
     def step(self, action):
         # updating states
         self.time_per_iteration[self.iteration] = rospy.get_time()
