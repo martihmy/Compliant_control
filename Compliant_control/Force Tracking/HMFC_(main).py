@@ -369,7 +369,7 @@ def get_f_lambda_subproducts(f_d_ddot, f_d_dot, f_d, i,time_per_iteration, S_f,C
     lambda_a = f_d_ddot
     lambda_b = np.array(np.dot(K_Dlambda,(f_d_dot-lambda_dot)))
     lambda_c = np.dot(K_Plambda,(f_d-z_force))
-    return lambda_dot, lambda_a, lambda_b, lambda_c, (lambda_a + lambda_b + lambda_c)
+    return lambda_dot, lambda_a, lambda_b, lambda_c, max(lambda_a + lambda_b + lambda_c,0)
 
     """def get_f_lambda_subproducts(f_d_ddot, f_d_dot, f_d, i,T, S_f,C,K_Dlambda,K_Plambda, z_force,h_e_hist):
     S_f_inv = get_S_inv(S_f,C)
