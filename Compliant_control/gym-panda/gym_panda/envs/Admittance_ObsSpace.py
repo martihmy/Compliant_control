@@ -29,11 +29,13 @@ class ObservationSpace:
         self.upper_delta_x = cfg.UPPER_DELTA_X
         self.lower_vel = cfg.LOWER_VEL
         self.upper_vel = cfg.UPPER_VEL
+        self.lower_z_c_dot = cfg.LOWER_Z_C_DOT
+        self.upper_z_c_dot = cfg.UPPER_Z_C_DOT
 
 
     def get_space_box(self):
-        lower = np.array([self.lower_F,self.lower_delta_x,self.lower_vel ])
-        upper = np.array([self.upper_F, self.upper_delta_x,self.upper_vel])
+        lower = np.array([self.lower_F,self.lower_delta_x,self.lower_vel,self.lower_z_c_dot ])
+        upper = np.array([self.upper_F, self.upper_delta_x,self.upper_vel,self.upper_z_c_dot])
 
 
 
