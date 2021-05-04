@@ -43,20 +43,38 @@ list_of_limits = utils.list_of_limits
   
 
 if __name__ == "__main__":
-	print('started PILCO_HMFC')
+	print('')
+	print('started load_PILCO_HMFC')
 
-	path = '/home/martin/PILCO/Compliant_panda/trained models/HMFC_2'
+	load_path = '/home/martin/PILCO/Compliant_panda/trained models/HMFC_model_and_policy_0'
 
 
 	#reward= None
-	horizon = 20
+	horizon = 25
+	F_weight = 3
 
-	pilco, X1, m_init, S_init, state_dim = load_pilco_model(path,utils.controller,horizon)
-	
-	X_new, Y_new, _, _, T, data_for_plotting = utils.rollout_panda_norm(utils.gw, utils.state_dim, X1, pilco=pilco, SUBS=utils.SUBS, render=False)
-	
-	#utils.plot_run(data_for_plotting,list_of_limits)
+	pilco, X1, m_init, S_init, state_dim, X, Y = load_pilco_model(load_path,utils.controller,horizon, F_weight)
 
+
+	num_rollouts = 1
+	for rollouts in range(num_rollouts):
+		print('optimizing models')
+		pilco.optimize_models()
+		print('optimizing policy')
+		pilco.optimize_policy(maxiter=25, restarts=0)
+		print('performing rollout')
+		X_new, Y_new, _, _, T, data_for_plotting = utils.rollout_panda_norm(utils.gw, utils.state_dim, X1, pilco=pilco, SUBS=utils.SUBS, render=False)
+	
+		X = np.vstack((X, X_new)); Y = np.vstack((Y, Y_new))
+		pilco.mgpr.set_data((X, Y))
+
+	save_path = '/home/martin/PILCO/Compliant_panda/trained models/HMFC_3_1_0'
+	print('saving model as' + save_path)
+	#save_pilco_model(pilco,X1,X,Y,save_path)
+	print('making plot of most recent run')
+	utils.plot_run(data_for_plotting,list_of_limits)
+
+	print('making plots of the multi-step predictions')
 	utils.plot_prediction(pilco,T,state_dim,X_new, m_init,S_init)
 	
 
