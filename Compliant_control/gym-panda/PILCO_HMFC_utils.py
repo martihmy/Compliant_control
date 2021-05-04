@@ -156,9 +156,9 @@ def rollout_panda_norm(gateway, state_dim, X1, pilco, verbose=False, random=Fals
 			channel.send(states.tolist())
 			
 			u = channel.receive()		#u = policy(env, pilco, x, random)
-			new_B = u[0]*15+15
-			new_K = u[1]*50 +60
-			new_Kp_pos = u[2]*25 + 125
+			new_B = u[0]*1.5+1.5
+			new_K = u[1]*40 +50
+			new_Kp_pos = u[2]*25 + 150
 			scaled_u = [new_B, new_K, new_Kp_pos]
 			for i in range(SUBS):
 				x_new, r, done, plot_data = env.step(scaled_u)
@@ -226,9 +226,9 @@ def rollout_panda(gateway, pilco, verbose=False, random=False, SUBS=1, render=Fa
 			channel.send(states.tolist())
 			
 			u = channel.receive()		#u = policy(env, pilco, x, random)
-			new_B = u[0]*15+15
-			new_K = u[1]*50 +60
-			new_Kp_pos = u[2]*25 + 125
+			new_B = u[0]*1.5+1.5
+			new_K = u[1]*40 +50
+			new_Kp_pos = u[2]*25 + 150
 			scaled_u = [new_B, new_K, new_Kp_pos]
 			for i in range(SUBS):
 				x_new, r, done, plot_data = env.step(scaled_u)
@@ -270,20 +270,20 @@ def rollout_panda(gateway, pilco, verbose=False, random=False, SUBS=1, render=Fa
 
 # must match the value of ACTION_SPACE in config
 KD_LAMBDA_LOWER = 0
-KD_LAMBDA_UPPER = 30
+KD_LAMBDA_UPPER = 3
 
 KP_LAMBDA_LOWER = 10
-KP_LAMBDA_UPPER = 110
+KP_LAMBDA_UPPER = 90
 
-KP_POS_LOWER = 100
-KP_POS_UPPER =  150
+KP_POS_LOWER = 125
+KP_POS_UPPER =  175
 
 list_of_limits = np.array([KD_LAMBDA_LOWER, KD_LAMBDA_UPPER, KP_LAMBDA_LOWER, KP_LAMBDA_UPPER, KP_POS_LOWER, KP_POS_UPPER ])
 
 def policy_0(pilco, x, is_random):
 	if is_random:
-		#return [random.uniform(KD_LAMBDA_LOWER,KD_LAMBDA_UPPER),random.uniform(KP_LAMBDA_LOWER,KP_LAMBDA_UPPER)] #random in range cfg.action-space IS
-		time.sleep(0.5) #0.2
+		time.sleep(0.4) #the delay is introduced to have a consistent time consumption whether is_random is True or False 
+		#return[0,0,0]
 		return [random.uniform(-1,1),random.uniform(-1,1),random.uniform(-1,1)] #the actions are scaled inside of panda_rollout...
 		
 	else:
