@@ -13,15 +13,6 @@ import matplotlib.pyplot as plt
 
 1) Gazebo must be setup before the training starts (object in place + servers running)
 
-2) Using "get_compact_state()", the state-space now look like this:
-
-            [damping, 
-            stiffness, 
-            force error 5 timesteps ago, 
-            force error now, 
-            difference between current force and the desired one 10 timesteps from now,
-            desired velocity
-            desired velocity 10 timesteps from now]
 
 """
 
@@ -42,19 +33,16 @@ class AdmittanceEnv(gym.Env):
         #only in __init()
         self.sim = cfg.SIM_STATUS
     
-
-        #self.increment = cfg.INCREMENT
         self.action_space = spaces.Box(low= cfg.ACTION_LOW, high = cfg.ACTION_HIGH, shape=(2,)) #spaces.Discrete(9)
         self.observation_space_container= ObservationSpace()
         self.observation_space = self.observation_space_container.get_space_box()
         self.max_num_it = cfg.MAX_NUM_IT 
 
-        #also in reset()
         rospy.init_node("admittance_control")
         self.rate = rospy.Rate(cfg.PUBLISH_RATE)
         self.robot = PandaArm()
         
-
+        #also in reset()
         self.robot.move_to_start(cfg.ALTERNATIVE_START,self.sim)
         
         #set desired pose/force trajectory
@@ -84,7 +72,7 @@ class AdmittanceEnv(gym.Env):
         self.history[9,:] = self.x_d[0,:self.max_num_it]
         self.history[10,:] = self.x_d[0,:self.max_num_it]
         self.history[11,:] = self.x_d[0,:self.max_num_it]
-        self.state = self.get_pure_states()#self.get_compact_state()
+        self.state = self.get_pure_states()
         print('The environment is initialized')
         print('')
 
@@ -92,7 +80,7 @@ class AdmittanceEnv(gym.Env):
     def step(self, action):
 
         
-        self.update_stiffness_and_damping(action) #self.alter_stiffness_and_damping(action)
+        self.update_stiffness_and_damping(action)
         
         self.update_pos_and_force()#self.sim
         af.update_F_error_list(self.F_error_list,self.F_d[:,self.iteration],self.Fz,self.sim)   
@@ -207,50 +195,10 @@ class AdmittanceEnv(gym.Env):
         self.history[7,self.iteration] = self.x[2] + self.E[2] #z_c
         self.history[8,:]=self.time_per_iteration
 
-    
-    def alter_stiffness_and_damping(self,action):
-                #indexes of action space:
-
-        #                       Damping (B)
-        #                   ---------------------#
-        #                   0       1       2   # (0-2): increase K
-        # Stiffness (K)     3       4       5   # (3-5): don't change K
-        #                   6       7       8   # (6-8): decrease K
-        #                   ---------------------#
-        #               (0,3,6): decrease B
-        #                       (1,4,7): don't change B
-        #                               (2,5,8): increase B
-        if action < 3:
-            if self.K < cfg.UPPER_K:
-                self.K += cfg.INCREMENT
-            if action == 0 and self.B > cfg.LOWER_B:
-                self.B -= cfg.INCREMENT
-            if action == 2 and self.B < cfg.UPPER_B:
-                self.B += cfg.INCREMENT
-    
-        elif action in range(3,5):
-            if action == 3 and self.B > cfg.LOWER_B:
-                self.B -= cfg.INCREMENT
-            if action == 5 and self.B < cfg.UPPER_B:
-                self.B +=cfg.INCREMENT
-
-        elif action > 5:
-            if self.K > cfg.LOWER_B:
-                self.K -= cfg.INCREMENT
-            if action == 6 and self.B > cfg.LOWER_B:
-                self.B -= cfg.INCREMENT
-            if action == 8 and self.B < cfg.UPPER_B:
-                self.B += cfg.INCREMENT
-
 
     def update_stiffness_and_damping(self,action):
         self.B = cfg.B_START + action[0]
-        #if self.B > cfg.UPPER_B: self.B = cfg.UPPER_B
-        #if self.B < cfg.LOWER_B: self.B = cfg.LOWER_B
-        
         self.K = cfg.K_START + action[1]
-        #if self.K > cfg.UPPER_K: self.K = cfg.UPPER_K
-        #if self.K < cfg.LOWER_K: self.K = cfg.LOWER_K
 
 
     def plot_run(self):
