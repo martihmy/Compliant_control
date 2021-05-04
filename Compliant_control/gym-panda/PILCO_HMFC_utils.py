@@ -14,10 +14,7 @@ from pilco.rewards import ExponentialReward
 import tensorflow as tf
 from gpflow import set_trainable
 np.random.seed(0)
-from examples.utils import policy#, rollout#, Normalised_Env
 
-from pilco.save_load_utils import load_pilco_model
-from pilco.save_load_utils import save_pilco_model
 np.set_printoptions(precision=2)
 
 
