@@ -16,8 +16,8 @@ from gpflow import set_trainable
 np.random.seed(0)
 from examples.utils import policy#, rollout#, Normalised_Env
 
-from pilco.save_load_utils import load_pilco_model
-from pilco.save_load_utils import save_pilco_model
+from save_load_utils import load_pilco_model
+from save_load_utils import save_pilco_model
 import PILCO_HMFC_utils as utils
 #import PILCO_HMFC as og
 np.set_printoptions(precision=2)
@@ -46,17 +46,17 @@ if __name__ == "__main__":
 	print('')
 	print('started load_PILCO_HMFC')
 
-	load_path = '/home/martin/PILCO/Compliant_panda/trained models/HMFC_model_and_policy_0'
+	load_path ='/home/martin/PILCO/Compliant_panda/trained models/HMFC_4'
 
 
 	#reward= None
 	horizon = 25
-	F_weight = 3
+	F_weight = 1
 
 	pilco, X1, m_init, S_init, state_dim, X, Y = load_pilco_model(load_path,utils.controller,horizon, F_weight)
 
 
-	num_rollouts = 1
+	num_rollouts = 3
 	for rollouts in range(num_rollouts):
 		print('optimizing models')
 		pilco.optimize_models()
@@ -68,7 +68,7 @@ if __name__ == "__main__":
 		X = np.vstack((X, X_new)); Y = np.vstack((Y, Y_new))
 		pilco.mgpr.set_data((X, Y))
 
-	save_path = '/home/martin/PILCO/Compliant_panda/trained models/HMFC_3_1_0'
+	save_path = '/home/martin/PILCO/Compliant_panda/trained models/HMFC_4_0'
 	print('saving model as' + save_path)
 	#save_pilco_model(pilco,X1,X,Y,save_path)
 	print('making plot of most recent run')

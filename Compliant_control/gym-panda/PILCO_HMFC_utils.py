@@ -18,17 +18,7 @@ np.random.seed(0)
 np.set_printoptions(precision=2)
 
 
-"""
-This script is running the Hybrid Motion/Force Controller in the PILCO/Gym-interface
-
-1) An agent is first performing random actions (no training) 
-	- the possible actions are increasing/deacreasing of damping and stiffness
-
-2) The data is then used to make a model of the mapping between actions and states
-
-3) The resulting model is used to find a policy for how to adjust damping and stiffness
-"""
-state_dim = 4
+state_dim = 5
 control_dim = 3
 
 """
@@ -81,9 +71,9 @@ def plot_run(data,list_of_limits):
     
     plt.subplot(243)
     plt.title("Orientation error")
-    plt.plot(adjusted_time_per_iteration, data[7], label = "error  Ori_x [degrees]")
-    plt.plot(adjusted_time_per_iteration, data[8], label = "error  Ori_y [degrees]")
-    plt.plot(adjusted_time_per_iteration, data[9], label = "error  Ori_z [degrees]")
+    plt.plot(adjusted_time_per_iteration, data[7], label = "error  Ori_x ")
+    plt.plot(adjusted_time_per_iteration, data[8], label = "error  Ori_y ")
+    plt.plot(adjusted_time_per_iteration, data[9], label = "error  Ori_z ")
     plt.xlabel("Real time [s]")
     plt.legend()
 
@@ -97,7 +87,7 @@ def plot_run(data,list_of_limits):
     plt.subplot(245)
     plt.title("Varying damping (force)")
     plt.axhline(y=list_of_limits[1], label = 'upper bound', color='C1', linestyle = 'dashed')
-    plt.plot(data[11], label = "damping over time")
+    plt.plot(adjusted_time_per_iteration,data[11], label = "damping over time")
     plt.axhline(y=list_of_limits[0], label = 'lower bound', color='C1', linestyle = 'dashed')
     plt.xlabel("iterations")
     plt.legend()
@@ -105,7 +95,7 @@ def plot_run(data,list_of_limits):
     plt.subplot(246)
     plt.title("Varying stiffness (force)")
     plt.axhline(y=list_of_limits[3], label = 'upper bound', color='C1', linestyle = 'dashed')
-    plt.plot(data[12], label = "stiffness over time")
+    plt.plot(adjusted_time_per_iteration,data[12], label = "stiffness over time")
     plt.axhline(y=list_of_limits[2], label = 'lower bound', color='C1', linestyle = 'dashed')
     plt.xlabel("iterations")
     plt.legend()
@@ -113,7 +103,7 @@ def plot_run(data,list_of_limits):
     plt.subplot(247)
     plt.title("Varying stiffness (pos x and y)")
     plt.axhline(y=list_of_limits[5], label = 'upper bound', color='C1', linestyle = 'dashed')
-    plt.plot(data[13], label = "stiffness over time")
+    plt.plot(adjusted_time_per_iteration,data[13], label = "stiffness over time")
     plt.axhline(y=list_of_limits[4], label = 'lower bound', color='C1', linestyle = 'dashed')
     plt.xlabel("iterations")
     plt.legend()
