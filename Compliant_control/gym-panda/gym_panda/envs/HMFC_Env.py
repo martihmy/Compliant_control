@@ -145,7 +145,7 @@ class HMFC_Env(gym.Env):
             done = False
             placeholder = None
 
-        self.state = self.robot.get_state_space_HMFC(self.p_z_init,self.F_offset,self.p_d[0,self.iteration])
+        self.state = self.robot.get_state_space_HMFC(self.p_z_init,self.F_offset,self.p_d[0,self.iteration],self.h_e_hist,self.iteration,self.time_per_iteration)
         self.iteration +=1
         rate = self.rate
         rate.sleep()
@@ -191,7 +191,7 @@ class HMFC_Env(gym.Env):
         #array with data meant for plotting
         self.data_for_plotting = np.zeros((14,self.max_num_it))
 
-        self.state = self.robot.get_state_space_HMFC(self.p_z_init,self.F_offset,self.p_d[0,self.iteration])
+        self.state = self.robot.get_state_space_HMFC(self.p_z_init,self.F_offset,self.p_d[0,self.iteration],self.h_e_hist,self.iteration,self.time_per_iteration)
         return np.array(self.state)
 
 

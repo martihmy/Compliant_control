@@ -37,7 +37,8 @@ def load_pilco_model(path,controller,horizon, F_weight, rbf=True):
     
     target , target[0]= np.zeros(state_dim), 3
     W_diag = np.zeros(state_dim)
-    W_diag[0] = F_weight
+    W_diag[0],W_diag[3], W_diag[4] = F_weight, 0.1, 0.5
+
 
     norm_env_m = np.mean(X1[:,:state_dim],0)
     norm_env_std = np.std(X1[:,:state_dim], 0)
