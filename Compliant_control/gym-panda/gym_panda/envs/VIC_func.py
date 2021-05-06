@@ -64,8 +64,8 @@ def generate_desired_trajectory(robot,max_num_it,T,move_down=True, move_in_x=Tru
     s[:,0]= robot.endpoint_pose()['position']
 
     if move_down:
-        a[2,0:10]=-1
-        a[2,30:40]= 1
+        a[2,0:10]=-0.5
+        a[2,30:40]= 0.5
 
     if move_in_x:
         a[0,int(max_num_it*4/10):int(max_num_it*5/10)]=0.015*2
@@ -370,12 +370,12 @@ def plot_run(data,list_of_limits):
 
     plt.subplot(248)
     plt.title("Varying damping and stiffness in z (result of learning) ")
-    plt.axhline(y=list_of_limits[7], label = 'upper bound', color='b', linestyle = 'dashed')
+    #plt.axhline(y=list_of_limits[7], label = 'upper bound', color='b', linestyle = 'dashed')
     plt.plot(data[14], label = "damping in z")
-    plt.axhline(y=list_of_limits[6], label = 'lower bound', color='b', linestyle = 'dashed')
-    plt.axhline(y=list_of_limits[9], label = 'upper bound', color='C1', linestyle = 'dashed')
+    #plt.axhline(y=list_of_limits[6], label = 'lower bound', color='b', linestyle = 'dashed')
+    #plt.axhline(y=list_of_limits[9], label = 'upper bound', color='C1', linestyle = 'dashed')
     plt.plot(data[15], label = "stiffness in z")
-    plt.axhline(y=list_of_limits[8], label = 'lower bound', color='C1', linestyle = 'dashed')
+    #plt.axhline(y=list_of_limits[8], label = 'lower bound', color='C1', linestyle = 'dashed')
     plt.xlabel("iterations")
     plt.legend()
 

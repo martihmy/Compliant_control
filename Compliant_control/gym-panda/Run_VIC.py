@@ -32,14 +32,13 @@ if __name__ == "__main__":
     agent = Agent(env.action_space)
     number_of_runs = 1
 
-    u = [ GAMMA_B_INIT/100, GAMMA_K_INIT/100, 100] #constant actions
     for episode in range(number_of_runs):
         print('starting run ', episode+1, ' /',number_of_runs)
         done= False
         x = env.reset()
         while done==False:
-            #u = agent.get_action()
-            #u = [random.uniform(0,30),random.uniform(10,80), 100]#[0.045,45]
+            u = agent.get_action()
+            #u = [random.uniform(0,30),random.uniform(10,80), 100] #can be used to test new action-regions
             x_new, reward, done, info = env.step(u)
 
         plot_run(info, list_of_limits)
