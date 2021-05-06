@@ -14,17 +14,16 @@ from pilco.rewards import ExponentialReward
 import tensorflow as tf
 from gpflow import set_trainable
 np.random.seed(0)
-from examples.utils import policy#, rollout#, Normalised_Env
 
 from save_load_utils import load_pilco_model
 from save_load_utils import save_pilco_model
-import PILCO_HMFC_utils as utils
-#import PILCO_HMFC as og
+import PILCO_VIC_utils as utils
+
 np.set_printoptions(precision=2)
 
 
 """
-This script is running the Hybrid Motion/Force Controller in the PILCO/Gym-interface
+This script is running the Variable Impedance Controller in the PILCO/Gym-interface
 
 1) An agent is first performing random actions (no training) 
 	- the possible actions are increasing/deacreasing of damping and stiffness
@@ -44,9 +43,9 @@ list_of_limits = utils.list_of_limits
 
 if __name__ == "__main__":
 	print('')
-	print('started load_PILCO_HMFC')
+	print('started load_PILCO_VIC')
 
-	load_path ='/home/martin/PILCO/Compliant_panda/trained models/HMFC_4'
+	load_path ='/home/martin/PILCO/Compliant_panda/trained models/VIC_0'
 
 
 	#reward= None
@@ -70,7 +69,7 @@ if __name__ == "__main__":
 
 	save_path = load_path + '/0'
 	print('saving model as' + save_path)
-	#save_pilco_model(pilco,X1,X,Y,target,W_diag,save_path)
+	save_pilco_model(pilco,X1,X,Y,target, W_diag,save_path)
 	print('making plot of most recent run')
 	utils.plot_run(data_for_plotting,list_of_limits)
 

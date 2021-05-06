@@ -146,7 +146,7 @@ if __name__ == "__main__":
 		pilco.mgpr.set_data((X, Y))
 		#pilco.mgpr.set_data((X_new, Y_new))
 	
-	save_pilco_model(pilco,X1,X,Y,save_path)
+	save_pilco_model(pilco,X1,X,Y,target,W_diag,save_path)
 	utils.plot_run(data_for_plotting, list_of_limits)
 
 

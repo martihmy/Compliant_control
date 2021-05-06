@@ -7,7 +7,7 @@ from pilco.models.pilco import PILCO
 from pilco.rewards import ExponentialReward
 
 
-def save_pilco_model(pilco_object,X1,X,Y,path,rbf=True):
+def save_pilco_model(pilco_object,X1,X,Y,target,W_diag,path,rbf=True):
     for i,m in enumerate(pilco_object.mgpr.models):
         tf.saved_model.save(m,path + '/model'+ str(i) )
 
@@ -24,22 +24,23 @@ def save_pilco_model(pilco_object,X1,X,Y,path,rbf=True):
     np.savetxt(path + '/X1.csv', X1, delimiter=',')
     np.savetxt(path + '/X.csv', X, delimiter=',')
     np.savetxt(path + '/Y.csv', Y, delimiter=',')
+    #does this work?
+    np.savetxt(path + '/target.csv', target, delimiter=',')
+    np.savetxt(path + '/W_diag.csv', W_diag, delimiter=',')
 
 
-def load_pilco_model(path,controller,horizon, F_weight, rbf=True):
+def load_pilco_model(path,controller,horizon, rbf=True):
     #saved_data = tf.saved_model.load(path)
     X1 = np.loadtxt(path + '/X1.csv', delimiter=',')
     X = np.loadtxt(path + '/X.csv', delimiter=',')
     Y = np.loadtxt(path + '/Y.csv', delimiter=',')
+    target = np.loadtxt(path + '/target.csv', delimiter=',')
+    W_diag = np.loadtxt(path + '/W_diag.csv', delimiter=',')
+    
 
     state_dim = Y.shape[1]
     control_dim = X.shape[1] - state_dim 
-    
-    target , target[0]= np.zeros(state_dim), 3
-    W_diag = np.zeros(state_dim)
-    W_diag[0],W_diag[3], W_diag[4] = F_weight, 0.1, 0.5
-
-
+ 
     norm_env_m = np.mean(X1[:,:state_dim],0)
     norm_env_std = np.std(X1[:,:state_dim], 0)
 
@@ -55,4 +56,4 @@ def load_pilco_model(path,controller,horizon, F_weight, rbf=True):
         for i,m in enumerate(pilco.controller.models):
             m = tf.saved_model.load(path + '/control_model'+ str(i))
     
-    return pilco,X1, m_init, S_init, state_dim, X, Y
+    return pilco,X1, m_init, S_init, state_dim, X, Y, target, W_diag
