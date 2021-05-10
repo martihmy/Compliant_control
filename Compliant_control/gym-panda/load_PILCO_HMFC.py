@@ -49,11 +49,11 @@ if __name__ == "__main__":
 	load_path ='/home/martin/PILCO/Compliant_panda/trained models/HMFC_4'
 
 
-	#reward= None
-	horizon = 25
-	F_weight = 1
 
-	pilco, X1, m_init, S_init, state_dim, X, Y, target, W_diag = load_pilco_model(load_path,utils.controller,horizon, F_weight)
+	horizon = 25
+
+
+	pilco, X1, m_init, S_init, state_dim, X, Y, target, W_diag = load_pilco_model(load_path,horizon)
 
 
 	num_rollouts = 3

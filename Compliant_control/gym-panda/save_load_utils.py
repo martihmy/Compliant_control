@@ -5,6 +5,7 @@ import tensorflow as tf
 #from gpflow import settings
 from pilco.models.pilco import PILCO
 from pilco.rewards import ExponentialReward
+from pilco.controllers import RbfController
 
 
 def save_pilco_model(pilco_object,X1,X,Y,target,W_diag,path,rbf=True):
@@ -29,7 +30,7 @@ def save_pilco_model(pilco_object,X1,X,Y,target,W_diag,path,rbf=True):
     np.savetxt(path + '/W_diag.csv', W_diag, delimiter=',')
 
 
-def load_pilco_model(path,controller,horizon, rbf=True):
+def load_pilco_model(path, horizon, rbf=True):
     #saved_data = tf.saved_model.load(path)
     X1 = np.loadtxt(path + '/X1.csv', delimiter=',')
     X = np.loadtxt(path + '/X.csv', delimiter=',')
@@ -46,7 +47,7 @@ def load_pilco_model(path,controller,horizon, rbf=True):
 
     m_init =  np.transpose(X[0,:-control_dim,None])
     S_init =  0.5 * np.eye(state_dim)
-
+    controller = RbfController(state_dim=state_dim, control_dim=control_dim, num_basis_functions=15) #not correct for admittance control
     reward = ExponentialReward(state_dim=state_dim, t=np.divide(target - norm_env_m, norm_env_std),W=np.diag(W_diag))
     pilco = PILCO((X,Y),horizon=horizon, controller=controller, reward=reward,m_init=m_init, S_init=S_init)
     for i,m in enumerate(pilco.mgpr.models):
