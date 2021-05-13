@@ -143,9 +143,9 @@ def rollout_panda_norm(gateway, state_dim, X1, pilco, verbose=False, random=Fals
 			channel.send(states.tolist())
 			
 			u = channel.receive()		#u = policy(env, pilco, x, random)
-			new_B = u[0]*1.5+1.5
+			new_B = u[0]*7.5+7.5
 			new_K = u[1]*40 +50
-			new_Kp_pos = u[2]*25 + 150
+			new_Kp_pos = 150 #u[2]*25 + 150
 			scaled_u = [new_B, new_K, new_Kp_pos]
 			for i in range(SUBS):
 				x_new, r, done, plot_data = env.step(scaled_u)
@@ -175,7 +175,7 @@ def rollout_panda_norm(gateway, state_dim, X1, pilco, verbose=False, random=Fals
 	num_of_recordings = channel.receive()
 	for _ in range(num_of_recordings):
 		states = channel.receive()
-		action = policy_0(pilco, np.asarray(states), random)
+		action = policy_0(10, pilco, np.asarray(states), random)
 		channel.send(action)
 	#output =  channel.receive()
 	#X, Y, ep_return_sampled, ep_return_full = output[0],output[1],output[2],output[3]
@@ -187,7 +187,7 @@ def rollout_panda_norm(gateway, state_dim, X1, pilco, verbose=False, random=Fals
 
 	return np.stack(X), np.stack(Y), ep_return_sampled, ep_return_full, num_of_recordings,np.array(plot_data)
 
-def rollout_panda(gateway, pilco, verbose=False, random=False, SUBS=1, render=False):
+def rollout_panda(run, gateway, pilco, verbose=False, random=False, SUBS=1, render=False):
 	channel = gateway.remote_exec("""
 		import gym
 		import sys
@@ -195,6 +195,7 @@ def rollout_panda(gateway, pilco, verbose=False, random=False, SUBS=1, render=Fa
 		import gym_panda
 		import numpy as np
 		from gym_panda.envs import HMFC_config as cfg
+		import math
 
 		env = gym.make('panda-HMFC-v0')
 	
@@ -212,10 +213,19 @@ def rollout_panda(gateway, pilco, verbose=False, random=False, SUBS=1, render=Fa
 			states = np.hstack(x)
 			channel.send(states.tolist())
 			
+			
 			u = channel.receive()		#u = policy(env, pilco, x, random)
-			new_B = u[0]*1.5+1.5
-			new_K = u[1]*40 +50
-			new_Kp_pos = u[2]*25 + 150
+			if timestep ==0:
+				new_B = u[0]*7.5+7.5
+				new_K = u[1]*40 +50
+
+			elif math.fmod(timestep,4) == 0:
+				if math.fmod(timestep,8) == 0:
+					new_B = u[0]*7.5+7.5
+				else:
+					new_K = u[1]*40 +50
+
+			new_Kp_pos = 50#150 #u[2]*25 + 150
 			scaled_u = [new_B, new_K, new_Kp_pos]
 			for i in range(SUBS):
 				x_new, r, done, plot_data = env.step(scaled_u)
@@ -242,9 +252,9 @@ def rollout_panda(gateway, pilco, verbose=False, random=False, SUBS=1, render=Fa
 		channel.send(plot_data.tolist())
 	""" % (SUBS,verbose))
 	num_of_recordings = channel.receive()
-	for _ in range(num_of_recordings):
+	for _ in range(int(num_of_recordings)):
 		states = channel.receive()
-		channel.send(policy_0(pilco, np.asarray(states), random))
+		channel.send(policy_0(run,pilco, np.asarray(states), random))
 	#output =  channel.receive()
 	#X, Y, ep_return_sampled, ep_return_full = output[0],output[1],output[2],output[3]
 	X = channel.receive()
@@ -257,7 +267,7 @@ def rollout_panda(gateway, pilco, verbose=False, random=False, SUBS=1, render=Fa
 
 # must match the value of ACTION_SPACE in config
 KD_LAMBDA_LOWER = 0
-KD_LAMBDA_UPPER = 3
+KD_LAMBDA_UPPER = 15
 
 KP_LAMBDA_LOWER = 10
 KP_LAMBDA_UPPER = 90
@@ -267,11 +277,17 @@ KP_POS_UPPER =  175
 
 list_of_limits = np.array([KD_LAMBDA_LOWER, KD_LAMBDA_UPPER, KP_LAMBDA_LOWER, KP_LAMBDA_UPPER, KP_POS_LOWER, KP_POS_UPPER ])
 
-def policy_0(pilco, x, is_random):
+def policy_0(run, pilco, x, is_random):
 	if is_random:
-		time.sleep(0.4) #the delay is introduced to have a consistent time consumption whether is_random is True or False 
-		#return[0,0,0]
-		return [random.uniform(-1,1),random.uniform(-1,1),random.uniform(-1,1)] #the actions are scaled inside of panda_rollout...
+		time.sleep(0.35) #the delay is introduced to have a consistent time consumption whether is_random is True or False 
+		if run == 0:
+			return [-1,random.uniform(-1,-0.8)]
+		elif run ==1:
+			return [random.uniform(-1,-0.5),random.uniform(-0.8,-0.6)]
+		elif run ==2:
+			return [random.uniform(-0.75,0.25),random.uniform(0,0.3)]
+		else:
+			return [random.uniform(0,1),0.8]
 		
 	else:
 		tensorflow_format = pilco.compute_action(x[None, :])[0, :]

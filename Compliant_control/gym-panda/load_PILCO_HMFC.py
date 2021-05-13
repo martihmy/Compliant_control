@@ -46,30 +46,32 @@ if __name__ == "__main__":
 	print('')
 	print('started load_PILCO_HMFC')
 
-	load_path ='/home/martin/PILCO/Compliant_panda/trained models/HMFC_4'
+	load_path ='/home/martin/PILCO/Compliant_panda/trained models/HMFC_tac'
 
 
 
-	horizon = 25
+	horizon = 15
 
 
 	pilco, X1, m_init, S_init, state_dim, X, Y, target, W_diag = load_pilco_model(load_path,horizon)
 
 
-	num_rollouts = 3
+	num_rollouts = 2
 	for rollouts in range(num_rollouts):
 		print('optimizing models')
 		pilco.optimize_models()
 		print('optimizing policy')
-		pilco.optimize_policy(maxiter=25, restarts=0)
+		pilco.optimize_policy(maxiter=75, restarts=0)
 		print('performing rollout')
-		X_new, Y_new, _, _, T, data_for_plotting = utils.rollout_panda_norm(utils.gw, utils.state_dim, X1, pilco=pilco, SUBS=utils.SUBS, render=False)
-	
+		X_new, Y_new, _, _, T, data_for_plotting = utils.rollout_panda_norm(utils.gw, state_dim, X1, pilco=pilco, SUBS='5', render=False)
+
 		X = np.vstack((X, X_new)); Y = np.vstack((Y, Y_new))
 		pilco.mgpr.set_data((X, Y))
 
-	save_path = load_path + '/0'
-	print('saving model as' + save_path)
+		utils.plot_run(data_for_plotting,list_of_limits)
+
+	save_path = load_path + '/2'
+	#print('saving model as' + save_path)
 	#save_pilco_model(pilco,X1,X,Y,target,W_diag,save_path)
 	print('making plot of most recent run')
 	utils.plot_run(data_for_plotting,list_of_limits)
