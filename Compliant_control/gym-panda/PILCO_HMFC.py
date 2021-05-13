@@ -38,9 +38,13 @@ This script is running the Hybrid Motion/Force Controller in the PILCO/Gym-inter
 
 list_of_limits = utils.list_of_limits
 
-save_path = '/home/martin/PILCO/Compliant_panda/trained models/HMFC_4'
+save_path = '/home/martin/PILCO/Compliant_panda/trained models/HMFC_tac_overshoot'
 
-F_weight = 1 #Degree of precision needed to get a decent reward
+# rewards
+F_weight = 3 #2
+Xpos_weight = 0 #0.1
+F_dot_weight = 0.1
+overshoot_weight = 1 #2#0.5
 
 if __name__ == "__main__":
 	print('started PILCO_HMFC')
@@ -51,8 +55,8 @@ if __name__ == "__main__":
 
 	print('starting first rollout')
 	
-	X1,Y1, _, _,T,data_for_plotting = utils.rollout_panda(gw, pilco=None, random=True, SUBS=SUBS, render=False) # function imported from PILCO (EXAMPLES/UTILS)
-	#utils.plot_run(data_for_plotting,list_of_limits)
+	X1,Y1, _, _,T,data_for_plotting = utils.rollout_panda(0,gw, pilco=None, random=True, SUBS=SUBS, render=False) # function imported from PILCO (EXAMPLES/UTILS)
+	utils.plot_run(data_for_plotting,list_of_limits)
 
 	"""
 	These initial rollouts with "random=True" is just gathering data so that we can make a model of the systems dynamics (performing random actions)
@@ -66,10 +70,10 @@ if __name__ == "__main__":
 	
 	for i in range(1,num_rollouts):
 		print('	- At rollout ',i+1, ' out of ',num_rollouts)
-		X1_, Y1_,_,_,_, data_for_plotting = utils.rollout_panda(gw, pilco=None, random=True, SUBS=SUBS, render=False)
+		X1_, Y1_,_,_,_, data_for_plotting = utils.rollout_panda(i,gw, pilco=None, random=True, SUBS=SUBS, render=False)
 		X1 = np.vstack((X1, X1_))
 		Y1 = np.vstack((Y1, Y1_))
-		#utils.plot_run(data_for_plotting, list_of_limits)
+		utils.plot_run(data_for_plotting, list_of_limits)
 	
 	
 	
@@ -89,14 +93,18 @@ if __name__ == "__main__":
 	Y consists of the normalised state-transitions
 	"""
 	
-	m_init =  np.transpose(X[0,:-control_dim,None])
-	S_init =  0.5 * np.eye(state_dim)
+	m_init =  np.transpose(X[0,:-control_dim,None]) #initial state
+	S_init =  np.eye(state_dim)*0 #1 # initial variance
 	controller = RbfController(state_dim=state_dim, control_dim=control_dim, num_basis_functions=15) #nbf 25
 	#controller = LinearController(state_dim=state_dim, control_dim=control_dim)
 	target = np.zeros(state_dim)
 	target[0] = 3 #desired force (must also be specified in the controller as this one is just related to rewards)
 	W_diag = np.zeros(state_dim)
-	W_diag[0],W_diag[3], W_diag[4] = F_weight, 0.1, 0.5
+	W_diag[0],W_diag[3],  = F_weight, Xpos_weight
+	if state_dim >= 5:
+		W_diag[4] = F_dot_weight
+	if state_dim >= 6: 
+		W_diag[5] = overshoot_weight
 
 
 
@@ -108,16 +116,16 @@ if __name__ == "__main__":
 	best_r = 0
 	all_Rs = np.zeros((X.shape[0], 1))
 	for i in range(len(all_Rs)):
-		all_Rs[i,0] = R.compute_reward(X[i,None,:-control_dim], 0.001 * np.eye(state_dim))[0]  # 
+		all_Rs[i,0] = R.compute_reward(X[i,None,:-control_dim], 0.001 * np.eye(state_dim))[0]  # why 0.001 ?
 
 	ep_rewards = np.zeros((len(X)//T,1))
 
 	for i in range(len(ep_rewards)):
 		ep_rewards[i] = sum(all_Rs[i * T: i*T + T])
 
-	for model in pilco.mgpr.models:
-		model.likelihood.variance.assign(0.05)
-		set_trainable(model.likelihood.variance, False)
+	#for model in pilco.mgpr.models:
+		#model.likelihood.variance.assign(0.05)# not being done in loaded models
+		#set_trainable(model.likelihood.variance, False)
 
 	r_new = np.zeros((T, 1))
 	print('doing more rollouts, optimizing the model between each run')
@@ -126,14 +134,15 @@ if __name__ == "__main__":
 		pilco.optimize_models()
 		print('	- optimizing policy...')
 		try:
-			pilco.optimize_policy(maxiter=25, restarts=0) #(maxiter=100, restarts=3) # 4 minutes when (1,0) #RESTART PROBLEMATIC? (25)
+			pilco.optimize_policy(maxiter=30, restarts=0) #(maxiter=100, restarts=3) # 4 minutes when (1,0) #RESTART PROBLEMATIC? (25)
 		except:
 			print('policy-optimization failed')#import pdb; pdb.set_trace()
 		X_new, Y_new, _, _,_, data_for_plotting = utils.rollout_panda_norm(gw, state_dim, X1, pilco=pilco, SUBS=SUBS, render=False)
-		#X_new,Y_new, _, _,_,data_for_plotting = rollout_panda(gw, pilco=pilco, random=False, SUBS=SUBS, render=False)
+		utils.plot_run(data_for_plotting, list_of_limits)
+		
 		
 		for i in range(len(X_new)):
-			r_new[:, 0] = R.compute_reward(X_new[i,None,:-control_dim], 0.001 * np.eye(state_dim))[0] #-control_dim
+			r_new[:, 0] = R.compute_reward(X_new[i,None,:-control_dim], 0.1 * np.eye(state_dim))[0] #-control_dim
 			
 		total_r = sum(r_new)
 		_, _, r = pilco.predict(m_init, S_init, T)
@@ -142,9 +151,10 @@ if __name__ == "__main__":
 		X = np.vstack((X, X_new)); Y = np.vstack((Y, Y_new))
 		all_Rs = np.vstack((all_Rs, r_new)); ep_rewards = np.vstack((ep_rewards, np.reshape(total_r,(1,1))))
 		pilco.mgpr.set_data((X, Y))
-		#pilco.mgpr.set_data((X_new, Y_new))
+		save_pilco_model(pilco,X1,X,Y,target,W_diag,save_path)
 	
-	save_pilco_model(pilco,X1,X,Y,target,W_diag,save_path)
+
+	np.save('HMFC_data.npy',data_for_plotting)
 	utils.plot_run(data_for_plotting, list_of_limits)
 
 	
