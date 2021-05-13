@@ -46,7 +46,7 @@ SUBS = "5"
 GAMMA_B_LOWER = 10**(-3)
 GAMMA_B_UPPER = 10**(-1)
 
-GAMMA_K_LOWER = 10**(-4)
+GAMMA_K_LOWER = 10**(-3)
 GAMMA_K_UPPER = 10**(-1)
 
 KP_POS_LOWER = 500
@@ -112,7 +112,7 @@ def plot_run(data,list_of_limits):
     plt.axhline(y=list_of_limits[1], label = 'upper bound', color='C1', linestyle = 'dashed')
     plt.plot(adjusted_time_per_iteration,data[12], label = "adaptive rate")
     plt.axhline(y=list_of_limits[0], label = 'lower bound', color='C1', linestyle = 'dashed')
-    plt.xlabel("iterations")
+    plt.xlabel("Real time [s]")
     plt.legend()
 
     plt.subplot(246)
@@ -121,7 +121,7 @@ def plot_run(data,list_of_limits):
     plt.axhline(y=list_of_limits[3], label = 'upper bound', color='C1', linestyle = 'dashed')
     plt.plot(adjusted_time_per_iteration,data[13], label = "adaptive rate")
     plt.axhline(y=list_of_limits[2], label = 'lower bound', color='C1', linestyle = 'dashed')
-    plt.xlabel("iterations")
+    plt.xlabel("Real time [s]")
     plt.legend()
 
     plt.subplot(247)
@@ -129,7 +129,7 @@ def plot_run(data,list_of_limits):
     plt.axhline(y=list_of_limits[5], label = 'upper bound', color='C1', linestyle = 'dashed')
     plt.plot(adjusted_time_per_iteration,data[16], label = "stiffness over time")
     plt.axhline(y=list_of_limits[4], label = 'lower bound', color='C1', linestyle = 'dashed')
-    plt.xlabel("iterations")
+    plt.xlabel("Real time [s]")
     plt.legend()
 
     plt.subplot(248)
@@ -140,7 +140,7 @@ def plot_run(data,list_of_limits):
     #plt.axhline(y=list_of_limits[9], label = 'upper bound', color='C1', linestyle = 'dashed')
     plt.plot(adjusted_time_per_iteration,data[15], label = "stiffness in z")
     #plt.axhline(y=list_of_limits[8], label = 'lower bound', color='C1', linestyle = 'dashed')
-    plt.xlabel("iterations")
+    plt.xlabel("Real time [s]")
     plt.legend()
 
     print('\a') #make a sound
@@ -174,13 +174,13 @@ def rollout_panda_norm(gateway, state_dim, X1, pilco, verbose=False, random=Fals
 			
 			#states = list(x)
 			states = np.hstack(x)
-			if math.fmod(rec,2) == 0:
-				channel.send(states.tolist())
-				u = channel.receive()		#u = policy(env, pilco, x, random)
-				new_gamma_B = 10**(u[0]-2) 		 #gamma_B in range 10^-3 to 10^⁻1
-				new_gamma_K = 10**(u[1]*1.5-2.5) #gamma_K in range 10^-4 to 10^-1
-				new_Kp_pos = u[2]*250 + 750		
-				scaled_u = [new_gamma_B, new_gamma_K, new_Kp_pos]
+			#if math.fmod(rec,2) == 0:
+			channel.send(states.tolist())
+			u = channel.receive()		#u = policy(env, pilco, x, random)
+			new_gamma_B = 10**(u[0]-2) 		 #gamma_B in range 10^-3 to 10^⁻1
+			new_gamma_K = 10**(u[1]-2) 		#gamma_K in range 10^-3 to 10^⁻1
+			new_Kp_pos = 1500 #u[2]*250 + 1250		
+			scaled_u = [new_gamma_B, new_gamma_K, new_Kp_pos]
 			for i in range(SUBS):
 				x_new, r, done, plot_data = env.step(scaled_u)
 				ep_return_full += r											#NORM-ROLLOUT
@@ -207,7 +207,7 @@ def rollout_panda_norm(gateway, state_dim, X1, pilco, verbose=False, random=Fals
 	""" % (state_dim, SUBS,verbose))
 	channel.send(X1.tolist())
 	num_of_recordings = channel.receive()
-	for _ in range(int(num_of_recordings/2)):
+	for _ in range(int(num_of_recordings)):
 		states = channel.receive()
 		action = policy_0(pilco, np.asarray(states), random)
 		channel.send(action)
@@ -230,6 +230,7 @@ def rollout_panda(gateway, pilco, verbose=False, random=False, SUBS=1, render=Fa
 		import numpy as np
 		import math
 		from gym_panda.envs import VIC_config as cfg
+		import math
 
 		env = gym.make('panda-VIC-v0')
 	
@@ -246,13 +247,22 @@ def rollout_panda(gateway, pilco, verbose=False, random=False, SUBS=1, render=Fa
 			#states = list(x)
 			states = np.hstack(x)
 
-			if math.fmod(rec,2) == 0:
-				channel.send(states.tolist())
-				u = channel.receive()		#u = policy(env, pilco, x, random)
+			#if math.fmod(rec,2) == 0:
+			channel.send(states.tolist())
+			u = channel.receive()			 #u = policy(env, pilco, x, random)
+			
+			if rec ==0:
 				new_gamma_B = 10**(u[0]-2) 		 #gamma_B in range 10^-3 to 10^⁻1
-				new_gamma_K = 10**(u[1]*1.5-2.5) #gamma_K in range 10^-4 to 10^-1
-				new_Kp_pos = u[2]*250 + 750	
-				scaled_u = [new_gamma_B, new_gamma_K, new_Kp_pos]
+				new_gamma_K = 10**(u[1]-2) 		 #gamma_K in range 10^-3 to 10^⁻1
+			
+			elif math.fmod(rec,4)==0:
+				if math.fmod(rec,8) == 0:
+					new_gamma_B = 10**(u[0]-2) 		 #gamma_B in range 10^-3 to 10^⁻1
+				else:
+					new_gamma_K = 10**(u[1]-2) 		 #gamma_K in range 10^-3 to 10^⁻1
+					
+			new_Kp_pos = 1500 #(now static) #u[2]*250 + 1250	
+			scaled_u = [new_gamma_B, new_gamma_K, new_Kp_pos]
 			for i in range(SUBS):
 				x_new, r, done, plot_data = env.step(scaled_u)
 				ep_return_full += r
@@ -278,7 +288,7 @@ def rollout_panda(gateway, pilco, verbose=False, random=False, SUBS=1, render=Fa
 		channel.send(plot_data.tolist())
 	""" % (SUBS,verbose))
 	num_of_recordings = channel.receive()
-	for _ in range(int(num_of_recordings/2)):
+	for _ in range(int(num_of_recordings)):
 		states = channel.receive()
 		channel.send(policy_0(pilco, np.asarray(states), random))
 	#output =  channel.receive()
@@ -295,7 +305,7 @@ def policy_0(pilco, x, is_random):
 	if is_random:
 		time.sleep(0.4) #the delay is introduced to have a consistent time consumption whether is_random is True or False 
 		#return[0,0,0]
-		return [random.uniform(-1,1),random.uniform(-1,1),random.uniform(-1,1)] #the actions are scaled inside of panda_rollout...
+		return [random.uniform(-1,1),random.uniform(-1,1)]#,random.uniform(-1,1)] #the actions are scaled inside of panda_rollout...
 		
 	else:
 		tensorflow_format = pilco.compute_action(x[None, :])[0, :]

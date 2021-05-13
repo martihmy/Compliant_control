@@ -62,10 +62,12 @@ def generate_desired_trajectory(robot,max_num_it,T,move_down=True, move_in_x=Tru
     s = np.zeros((3,max_num_it))
     
     s[:,0]= robot.endpoint_pose()['position']
-
+    """
     if move_down:
         a[2,0:10]=-0.5
         a[2,30:40]= 0.5
+    """
+    s[2,0] -= 0.2 #0.1
 
     if move_in_x:
         a[0,int(max_num_it*4/10):int(max_num_it*5/10)]=0.015*2

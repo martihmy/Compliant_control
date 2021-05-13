@@ -14,7 +14,7 @@ GAMMA_B_LOWER = 10**(-3)
 GAMMA_B_UPPER = 10**(-1)
 
 GAMMA_K_LOWER = 10**(-4)
-GAMMA_K_UPPER = 10**(-1)
+GAMMA_K_UPPER = 10**(-2)
 
 KP_POS_LOWER = 500
 KP_POS_UPPER =  1000
@@ -28,26 +28,15 @@ KP_POS_INIT = (KP_POS_UPPER + KP_POS_LOWER) /2
 
 
 
-# With M=5:
 # parameters of stiffness and damping matrices
-Kp =  700 # learning!
-Kpz = 25 #initial value (adaptive)
-Ko = 1000#900
+Kp =  1250 # learning!
+Kpz = 20#35#50 #initial value (adaptive)
+Ko = 5000#1500#900
 
 Bp = 700/4
 Bpz = 15 # #initial value (adaptive)
-Bo = 10#10
+Bo =  3750 #10#100#10
 
-# With M = 10:
-"""
-Kp =  40 # learning!
-Kpz = 25 #initial value (adaptive)
-Ko = 1000#900
-
-Bp = 20
-Bpz = 10 # #initial value (adaptive)
-Bo = 50#10
-"""
 # MASS, DAMPING AND STIFFNESS MATRICES (ONLY M IS COMPLETELY CONSTANT)
 M = np.identity(6)*10
 B = np.array([[Bp, 0, 0, 0, 0, 0],

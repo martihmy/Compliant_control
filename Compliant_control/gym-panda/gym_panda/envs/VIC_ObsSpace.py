@@ -29,8 +29,8 @@ class ObservationSpace:
 
 
     def get_space_box(self):
-        lower = np.array([self.lower_F,self.lower_delta_z,self.lower_vel, self.lower_x_error, self.lower_force_dot,self.lower_force_overshoot ])
-        upper = np.array([self.upper_F, self.upper_delta_z,self.upper_vel, self.upper_x_error,self.upper_force_dot,self.upper_force_overshoot ])
+        lower = np.array([self.lower_F,self.lower_delta_z,self.lower_vel, self.lower_x_error, self.lower_force_dot])#,self.lower_force_overshoot ])
+        upper = np.array([self.upper_F, self.upper_delta_z,self.upper_vel, self.upper_x_error,self.upper_force_dot])#,self.upper_force_overshoot ])
 
 
 

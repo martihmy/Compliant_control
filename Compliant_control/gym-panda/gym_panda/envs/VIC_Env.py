@@ -22,7 +22,9 @@ class VIC_Env(gym.Env):
     def __init__(self):
         #only in __init()
         self.sim = cfg.SIM_STATUS
-        self.action_space = spaces.Box(low= np.array([cfg.GAMMA_B_LOWER,cfg.GAMMA_K_LOWER,cfg.KP_POS_LOWER]), high = np.array([cfg.GAMMA_B_UPPER,cfg.GAMMA_K_UPPER,cfg.KP_POS_UPPER])) 
+        #self.action_space = spaces.Box(low= np.array([cfg.GAMMA_B_LOWER,cfg.GAMMA_K_LOWER,cfg.KP_POS_LOWER]), high = np.array([cfg.GAMMA_B_UPPER,cfg.GAMMA_K_UPPER,cfg.KP_POS_UPPER])) 
+        #two dim action space
+        self.action_space = spaces.Box(low= np.array([cfg.GAMMA_B_LOWER,cfg.GAMMA_K_LOWER]), high = np.array([cfg.GAMMA_B_UPPER,cfg.GAMMA_K_UPPER])) 
         self.observation_space_container= ObservationSpace() 
         self.observation_space = self.observation_space_container.get_space_box()
         self.max_num_it = cfg.MAX_NUM_IT

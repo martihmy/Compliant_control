@@ -45,14 +45,17 @@ if __name__ == "__main__":
 	print('')
 	print('started load_PILCO_VIC')
 
-	load_path ='/home/martin/PILCO/Compliant_panda/trained models/VIC_0'
+	load_path ='/home/martin/PILCO/Compliant_panda/trained models/VIC_0_4dim'
 
 
 	#reward= None
 	horizon = 25
 	F_weight = 1
 
-	pilco, X1, m_init, S_init, state_dim, X, Y, target, W_diag = load_pilco_model(load_path,utils.controller,horizon, F_weight)
+	pilco, X1, m_init, S_init, state_dim, X, Y, target, W_diag = load_pilco_model(load_path,horizon)
+
+	_, _, _, _, _, data_for_plotting = utils.rollout_panda_norm(utils.gw, state_dim, X1, pilco=pilco, SUBS=utils.SUBS, render=False)
+	utils.plot_run(data_for_plotting,list_of_limits)
 
 
 	num_rollouts = 3
@@ -62,7 +65,7 @@ if __name__ == "__main__":
 		print('optimizing policy')
 		pilco.optimize_policy(maxiter=25, restarts=0)
 		print('performing rollout')
-		X_new, Y_new, _, _, T, data_for_plotting = utils.rollout_panda_norm(utils.gw, utils.state_dim, X1, pilco=pilco, SUBS=utils.SUBS, render=False)
+		X_new, Y_new, _, _, T, data_for_plotting = utils.rollout_panda_norm(utils.gw, state_dim, X1, pilco=pilco, SUBS=utils.SUBS, render=False)
 	
 		X = np.vstack((X, X_new)); Y = np.vstack((Y, Y_new))
 		pilco.mgpr.set_data((X, Y))

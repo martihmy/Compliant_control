@@ -36,13 +36,13 @@ This script is running the Variable Impedance Controller in the PILCO/Gym-interf
 """
 
 
-save_path = '/home/martin/PILCO/Compliant_panda/trained models/VIC_0'
+save_path = '/home/martin/PILCO/Compliant_panda/trained models/VIC_tac'
 
 # rewards
-F_weight = 1 
-Xpos_weight = 0.1
-F_dot_weight = 0.5
-overshoot_weight = 1
+F_weight = 5 #10, 1 
+Xpos_weight = 0 #0.1
+F_dot_weight = 0.1
+overshoot_weight = 1 #1
 
 if __name__ == "__main__":
 	print('started PILCO_VIC')
@@ -71,7 +71,7 @@ if __name__ == "__main__":
 		X1_, Y1_,_,_,_, data_for_plotting = utils.rollout_panda(gw, pilco=None, random=True, SUBS=SUBS, render=False)
 		X1 = np.vstack((X1, X1_))
 		Y1 = np.vstack((Y1, Y1_))
-		#utils.plot_run(data_for_plotting, list_of_limits)
+		utils.plot_run(data_for_plotting, list_of_limits)
 	
 	
 	
@@ -92,13 +92,17 @@ if __name__ == "__main__":
 	"""
 	
 	m_init =  np.transpose(X[0,:-control_dim,None])
-	S_init =  0.5 * np.eye(state_dim)
+	S_init =  1 * np.eye(state_dim)
 	controller = RbfController(state_dim=state_dim, control_dim=control_dim, num_basis_functions=15) #nbf 25
 	#controller = LinearController(state_dim=state_dim, control_dim=control_dim)
 	target = np.zeros(state_dim)
 	target[0] = 3 #desired force (must also be specified in the controller as this one is just related to rewards)
 	W_diag = np.zeros(state_dim)
-	W_diag[0],W_diag[3], W_diag[4], W_diag[5] = F_weight, Xpos_weight, F_dot_weight, overshoot_weight
+	W_diag[0],W_diag[3],  = F_weight, Xpos_weight
+	if state_dim >= 5:
+		W_diag[4] = F_dot_weight
+	if state_dim >= 6: 
+		W_diag[5] = overshoot_weight
 
 
 
@@ -147,6 +151,7 @@ if __name__ == "__main__":
 		#pilco.mgpr.set_data((X_new, Y_new))
 	
 	save_pilco_model(pilco,X1,X,Y,target,W_diag,save_path)
+	np.save('VIC_data.npy',data_for_plotting)
 	utils.plot_run(data_for_plotting, list_of_limits)
 
 
