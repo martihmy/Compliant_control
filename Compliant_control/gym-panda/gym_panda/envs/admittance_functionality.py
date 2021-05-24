@@ -83,8 +83,8 @@ def generate_desired_trajectory_tc(robot,iterations,T,move_in_x=False, move_down
         a[2,int(max_num_it/75):int(max_num_it*2/75)]=0.625
         
     if move_in_x:
-        a[0,int(max_num_it*4/10):int(max_num_it*5/10)]=0.015
-        a[0,int(max_num_it*7/10):int(max_num_it*8/10)]=-0.015
+        a[0,int(max_num_it*4/10):int(max_num_it*6/10)]=0.05
+        a[0,int(max_num_it*6/10):int(max_num_it*8/10)]=-0.05
     for i in range(max_num_it+100):
         if i>0:
             v[:,i]=v[:,i-1]+a[:,i-1]*T
@@ -138,9 +138,9 @@ def generate_Fd_advanced(max_num_it,T):
     return s
 
 # Generate a constant desired force [STABLE]
-def generate_F_d_constant(max_num_it):
+def generate_F_d_constant(max_num_it,Fd):
     s = np.zeros((6,max_num_it))
-    s[2,:]= 3
+    s[2,:]= Fd
     return s
 
 def generate_F_d_steep(robot, max_num_it,T,sim):
