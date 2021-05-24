@@ -21,13 +21,15 @@ DELTA_Xd_HORIZON = 10
 
 SIM_STATUS = True
 
-Fd = 3
+Fd = 0#3
 PUBLISH_RATE = 50
 T = 0.001*(1000/PUBLISH_RATE) # The control loop's time step
 duration = 5#2#10#15
 MAX_NUM_IT = int(duration*PUBLISH_RATE)
 
 ALTERNATIVE_START = af.cartboard
+
+RED_START = {'panda_joint1':-0.020886360413928884, 'panda_joint2':-0.6041856795321063, 'panda_joint3': 0.022884284694488777, 'panda_joint4': -2.241203921591765, 'panda_joint5': 0.029363915766836612, 'panda_joint6': 1.5962793070668644, 'panda_joint7': 0.7532362527093444}
 
 M = 50
 B_START = 75

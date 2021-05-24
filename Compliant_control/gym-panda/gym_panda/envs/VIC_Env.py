@@ -9,6 +9,9 @@ import numpy as np
 import rospy
 import matplotlib.pyplot as plt
 
+import random
+np.random.seed(0)
+
 """ GENERAL COMMENTS 
 
 1) Gazebo must be setup before the training starts (object in place + servers running)
@@ -41,8 +44,16 @@ class VIC_Env(gym.Env):
         self.K = cfg.K
 
         #also in reset()
-        self.robot.move_to_start(cfg.ALTERNATIVE_START,self.sim)
+        """
+        random_number = random.uniform(-1,1)
+        if random_number <= 0:
+            start_neutral = True
+        else:
+            start_neutral = False
 
+        self.robot.move_to_start(cfg.ALTERNATIVE_START, cfg.RED_START ,self.sim, start_neutral=start_neutral)
+        """
+        #Moving to correct starting position in reset() instead 
 
 
         self.gamma = np.identity(18)
@@ -154,6 +165,13 @@ class VIC_Env(gym.Env):
 
         self.lam = np.zeros(18)
 
+        random_number = random.uniform(-1,1)
+        if random_number <= 0:
+            start_neutral = True
+        else:
+            start_neutral = False
+
+        self.robot.move_to_start(cfg.ALTERNATIVE_START, cfg.RED_START ,self.sim, start_neutral=start_neutral)
 
             #set desired pose/force trajectory
         self.Rot_d = self.robot.endpoint_pose()['orientation_R']

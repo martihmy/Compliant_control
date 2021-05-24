@@ -51,9 +51,9 @@ if __name__ == "__main__":
 	gw = execnet.makegateway("popen//python=python2.7")
 	
 	num_randomised_rollouts = 5
-	num_rollouts = 8
+	num_rollouts = 14
 
-	SUBS = "2"
+	SUBS = "3"
 	horizon_fraq = 1/5
 
 	print('starting first rollout')
@@ -76,7 +76,7 @@ if __name__ == "__main__":
 		X1_, Y1_,_,_,_, data_for_plotting = utils.rollout_panda(i,gw, pilco=None, random=True, SUBS=SUBS, render=False)
 		X1 = np.vstack((X1, X1_))
 		Y1 = np.vstack((Y1, Y1_))
-		#utils.plot_run(data_for_plotting, list_of_limits)
+		utils.plot_run(data_for_plotting, list_of_limits)
 	
 	
 	
@@ -148,8 +148,7 @@ if __name__ == "__main__":
 			pilco.optimize_policy(maxiter=300, restarts=0) #(maxiter=100, restarts=3) # 4 minutes when (1,0) #RESTART PROBLEMATIC? (25)
 		except:
 			print('policy-optimization failed')#import pdb; pdb.set_trace()
-		pilco.optimize_models()
-		pilco.optimize_policy(maxiter=300, restarts=0)
+
 		X_new, Y_new, _, _,_, data_for_plotting = utils.rollout_panda_norm(gw, state_dim, X1, pilco=pilco, SUBS=SUBS, render=False)
 		
 		

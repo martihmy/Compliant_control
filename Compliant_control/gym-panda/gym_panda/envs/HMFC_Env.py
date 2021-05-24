@@ -9,6 +9,9 @@ import numpy as np
 import rospy
 import matplotlib.pyplot as plt
 
+import random
+np.random.seed(0)
+
 """ GENERAL COMMENTS 
 
 1) Gazebo must be setup before the training starts (object in place + servers running)
@@ -65,8 +68,15 @@ class HMFC_Env(gym.Env):
         self.joint_names=self.robot.joint_names()
 
         #also in reset()
-        self.robot.move_to_start(cfg.ALTERNATIVE_START,self.sim)
+        """
+        random_number = random.uniform(-1,1)
+        if random_number <= 0:
+            start_neutral = True
+        else:
+            start_neutral = False
 
+        self.robot.move_to_start(cfg.ALTERNATIVE_START, cfg.RED_START ,self.sim, start_neutral=start_neutral)
+        """
 
             #set desired pose/force trajectory
         self.f_d_ddot,self.f_d_dot, self.f_d= func.generate_Fd_constant(self.max_num_it)#func.generate_Fd_steep(self.max_num_it,cfg.T,cfg.Fd)  
@@ -156,7 +166,13 @@ class HMFC_Env(gym.Env):
 
     def reset(self):
 
-        self.robot.move_to_start(cfg.ALTERNATIVE_START,self.sim)
+        random_number = random.uniform(-1,1)
+        if random_number <= 0:
+            start_neutral = True
+        else:
+            start_neutral = False
+
+        self.robot.move_to_start(cfg.ALTERNATIVE_START, cfg.RED_START ,self.sim, start_neutral=start_neutral)
 
 
             #set desired pose/force trajectory
