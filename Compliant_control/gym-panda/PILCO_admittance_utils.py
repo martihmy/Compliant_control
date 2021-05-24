@@ -29,6 +29,8 @@ This script is running the admittance controller in the PILCO/Gym-interface
 3) The resulting model is used to find a policy for how to adjust damping and stiffness
 """
 
+
+
 gw = execnet.makegateway("popen//python=python2.7")
 
 def plot_run(history):
@@ -37,16 +39,15 @@ def plot_run(history):
 		raw_time = history[8,:]
 		offset_free_time = raw_time - raw_time[0]
 		T_list = np.zeros(len(raw_time))
-		T_list[0] = 0.04 #jjust setting it to a more probable value than 0
 		for i in range(len(raw_time)):
 			if i >0:
 				T_list[i] = offset_free_time[i]-offset_free_time[i-1]
+		T_list[0] = T_list[-1] #just setting it to a more probable value than 0
+		T_list[1] = T_list[-2] #testing something
 
 		#removing offset from force-measurements
-		raw_force = history[0,:]
-		offset_free_force = raw_force #- raw_force[0] #remove offset
-		raw_Fd = history[1,:]
-		offset_free_Fdz= raw_Fd[:] #-raw_Fd[0] #remove offset
+		offset_free_force = history[0,:]
+		offset_free_Fdz= history[1,:]
 
 		plt.subplot(231)
 		plt.title("External force")
@@ -129,8 +130,8 @@ def rollout_panda_norm(gateway, state_dim, X1, pilco, verbose=False, random=Fals
 			channel.send(states.tolist())
 			
 			u = channel.receive()		#u = policy(env, pilco, x, random)
-			scaled_B = u[0]*20
-			scaled_K = u[1]*20
+			scaled_B = u[0]*125+275
+			scaled_K = u[1]*150+350
 			scaled_u = [scaled_B, scaled_K]
 			for i in range(SUBS):
 				x_new, r, done, plot_data = env.step(scaled_u)
@@ -180,6 +181,7 @@ def rollout_panda(gateway, pilco, verbose=False, random=False, SUBS=1, render=Fa
 		import gym_panda
 		import numpy as np
 		from gym_panda.envs import admittance_config as cfg
+		import math
 
 		env = gym.make('panda-admittance-v0')
 	
@@ -198,8 +200,15 @@ def rollout_panda(gateway, pilco, verbose=False, random=False, SUBS=1, render=Fa
 			channel.send(states.tolist())
 			
 			u = channel.receive()		#u = policy(env, pilco, x, random)
-			scaled_B = u[0]*20
-			scaled_K = u[1]*20
+			if timestep ==0:
+				scaled_B = u[0]*125+275
+				scaled_K = u[1]*150+350
+
+			elif math.fmod(timestep,4) == 0:
+				if math.fmod(timestep,8) == 0:
+					scaled_B = u[0]*125+275
+				else:
+					scaled_K = u[1]*150+350
 			scaled_u = [scaled_B, scaled_K]
 			for i in range(SUBS):
 				x_new, r, done, plot_data = env.step(scaled_u)

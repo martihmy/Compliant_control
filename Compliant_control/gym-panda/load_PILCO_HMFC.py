@@ -46,35 +46,42 @@ if __name__ == "__main__":
 	print('')
 	print('started load_PILCO_HMFC')
 
-	load_path ='/home/martin/PILCO/Compliant_panda/trained models/HMFC_tac'
-
+	load_path = '/home/martin/PILCO/Compliant_panda/trained models/HMFC_linear_3_states_dualEnv_freqActions'
+	save_path = load_path + '/2'
+	rbf_status = False
 
 
 	horizon = 15
 
 
-	pilco, X1, m_init, S_init, state_dim, X, Y, target, W_diag = load_pilco_model(load_path,horizon)
+	pilco, X1, m_init, S_init, state_dim, X, Y, target, W_diag = load_pilco_model(load_path,horizon,rbf=rbf_status)
 
 
-	num_rollouts = 2
+	num_rollouts = 10
 	for rollouts in range(num_rollouts):
+		print('Starting optimization ',rollouts+1, ' out of ',num_rollouts)
 		print('optimizing models')
 		pilco.optimize_models()
 		print('optimizing policy')
-		pilco.optimize_policy(maxiter=75, restarts=0)
+		pilco.optimize_policy(maxiter=200, restarts=0)
 		print('performing rollout')
 		X_new, Y_new, _, _, T, data_for_plotting = utils.rollout_panda_norm(utils.gw, state_dim, X1, pilco=pilco, SUBS='5', render=False)
 
 		X = np.vstack((X, X_new)); Y = np.vstack((Y, Y_new))
 		pilco.mgpr.set_data((X, Y))
 
-		utils.plot_run(data_for_plotting,list_of_limits)
+		print('saving model as' + save_path)
+		save_pilco_model(pilco,X1,X,Y,target,W_diag,save_path,rbf=rbf_status)
+		np.save(save_path + '/hmfc_data_' + str(rollouts) + '_ex1.npy',data_for_plotting)
+		#utils.plot_run(data_for_plotting,list_of_limits)
 
-	save_path = load_path + '/2'
-	#print('saving model as' + save_path)
-	#save_pilco_model(pilco,X1,X,Y,target,W_diag,save_path)
-	print('making plot of most recent run')
-	utils.plot_run(data_for_plotting,list_of_limits)
+		print('doing one more run with same policy (testing consistency)')
+		X_new, Y_new, _, _, T, data_for_plotting = utils.rollout_panda_norm(utils.gw, state_dim, X1, pilco=pilco, SUBS=utils.SUBS, render=False)
+		np.save(save_path + '/hmfc_data_' + str(rollouts) + '_ex2.npy',data_for_plotting)
+		#utils.plot_run(data_for_plotting,list_of_limits)
+
+	
+	
 
 	print('making plots of the multi-step predictions')
 	utils.plot_prediction(pilco,T,state_dim,X_new, m_init,S_init)

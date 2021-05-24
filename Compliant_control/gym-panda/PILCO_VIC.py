@@ -36,7 +36,7 @@ This script is running the Variable Impedance Controller in the PILCO/Gym-interf
 """
 
 
-save_path = '/home/martin/PILCO/Compliant_panda/trained models/VIC_tac'
+save_path = '/home/martin/PILCO/Compliant_panda/trained models/VIC_linear'
 
 # rewards
 F_weight = 5 #10, 1 
@@ -54,6 +54,8 @@ if __name__ == "__main__":
 	print('starting first rollout')
 	
 	X1,Y1, _, _,T,data_for_plotting = utils.rollout_panda(gw, pilco=None, random=True, SUBS=SUBS, render=False) # function imported from PILCO (EXAMPLES/UTILS)
+	rollout = 0
+	np.save(save_path + '/testing_' + str(rollout) + '.npy',data_for_plotting)
 	utils.plot_run(data_for_plotting,list_of_limits)
 
 	"""
@@ -71,7 +73,7 @@ if __name__ == "__main__":
 		X1_, Y1_,_,_,_, data_for_plotting = utils.rollout_panda(gw, pilco=None, random=True, SUBS=SUBS, render=False)
 		X1 = np.vstack((X1, X1_))
 		Y1 = np.vstack((Y1, Y1_))
-		utils.plot_run(data_for_plotting, list_of_limits)
+		#utils.plot_run(data_for_plotting, list_of_limits)
 	
 	
 	
@@ -92,9 +94,11 @@ if __name__ == "__main__":
 	"""
 	
 	m_init =  np.transpose(X[0,:-control_dim,None])
-	S_init =  1 * np.eye(state_dim)
-	controller = RbfController(state_dim=state_dim, control_dim=control_dim, num_basis_functions=15) #nbf 25
-	#controller = LinearController(state_dim=state_dim, control_dim=control_dim)
+	S_init =  0.001 * np.eye(state_dim)
+	#controller = RbfController(state_dim=state_dim, control_dim=control_dim, num_basis_functions=15) #nbf 25
+	controller = LinearController(state_dim=state_dim, control_dim=control_dim)
+	rbf_status = False
+	
 	target = np.zeros(state_dim)
 	target[0] = 3 #desired force (must also be specified in the controller as this one is just related to rewards)
 	W_diag = np.zeros(state_dim)
@@ -120,11 +124,11 @@ if __name__ == "__main__":
 
 	for i in range(len(ep_rewards)):
 		ep_rewards[i] = sum(all_Rs[i * T: i*T + T])
-
+	"""
 	for model in pilco.mgpr.models:
 		model.likelihood.variance.assign(0.05)
 		set_trainable(model.likelihood.variance, False)
-
+	"""
 	r_new = np.zeros((T, 1))
 	print('doing more rollouts, optimizing the model between each run')
 	for rollouts in range(num_rollouts):
@@ -132,27 +136,27 @@ if __name__ == "__main__":
 		pilco.optimize_models()
 		print('	- optimizing policy...')
 		try:
-			pilco.optimize_policy(maxiter=25, restarts=0) #(maxiter=100, restarts=3) # 4 minutes when (1,0) #RESTART PROBLEMATIC? (25)
+			pilco.optimize_policy(maxiter=100, restarts=0) #(maxiter=100, restarts=3) # 4 minutes when (1,0) #RESTART PROBLEMATIC? (25)
 		except:
 			print('policy-optimization failed')#import pdb; pdb.set_trace()
 		X_new, Y_new, _, _,_, data_for_plotting = utils.rollout_panda_norm(gw, state_dim, X1, pilco=pilco, SUBS=SUBS, render=False)
 		#X_new,Y_new, _, _,_,data_for_plotting = rollout_panda(gw, pilco=pilco, random=False, SUBS=SUBS, render=False)
-		
 		for i in range(len(X_new)):
 			r_new[:, 0] = R.compute_reward(X_new[i,None,:-control_dim], 0.001 * np.eye(state_dim))[0] #-control_dim
 			
 		total_r = sum(r_new)
-		_, _, r = pilco.predict(m_init, S_init, T)
+		#_, _, r = pilco.predict(m_init, S_init, T)
 		
 		print("Total ", total_r, " Predicted: ", r)
 		X = np.vstack((X, X_new)); Y = np.vstack((Y, Y_new))
 		all_Rs = np.vstack((all_Rs, r_new)); ep_rewards = np.vstack((ep_rewards, np.reshape(total_r,(1,1))))
 		pilco.mgpr.set_data((X, Y))
-		#pilco.mgpr.set_data((X_new, Y_new))
+		save_pilco_model(pilco,X1,X,Y,target,W_diag,save_path,rbf=rbf_status)
+		np.save(save_path + '/vic_data_' + str(rollouts) + '.npy',data_for_plotting)
+		utils.plot_run(data_for_plotting, list_of_limits)
 	
-	save_pilco_model(pilco,X1,X,Y,target,W_diag,save_path)
-	np.save('VIC_data.npy',data_for_plotting)
-	utils.plot_run(data_for_plotting, list_of_limits)
+	
+
 
 
 

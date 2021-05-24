@@ -35,7 +35,13 @@ This script is running the admittance controller in the PILCO/Gym-interface
 
 
 
-save_path = '/home/martin/PILCO/Compliant_panda/trained models/Admittance_model_and_policy_0'
+save_path = '/home/martin/PILCO/Compliant_panda/trained models/Admittance_tac'
+
+#rewards
+Force_precision = 1
+noise_reduction = 2
+
+Fd = 3
 
 if __name__ == "__main__":
 	print('started PILCO_admittance')
@@ -85,14 +91,14 @@ if __name__ == "__main__":
 	# THE BLOCK BELOW IS USED WHEN YOU WANT TO USE PREVIOUSLY RECORDED DATA
 
 	m_init =  np.transpose(X[0,:-control_dim,None])
-	S_init =  0.5 * np.eye(state_dim)
+	S_init =  0 * np.eye(state_dim)
 	#controller = RbfController(state_dim=state_dim, control_dim=control_dim, num_basis_functions=25)
 	controller = LinearController(state_dim=state_dim, control_dim=control_dim)
 	target = np.zeros(state_dim)
-	target[0] = 3 #desired force (must also be specified in the controller as this one is just related to rewards)
+	target[0] = Fd #desired force (must also be specified in the controller as this one is just related to rewards)
 	W_diag = np.zeros(state_dim)
-	W_diag[0] = 1
-	W_diag[3] = 2
+	W_diag[0] = Force_precision
+	W_diag[3] = noise_reduction
 
 
 	R = ExponentialReward(state_dim=state_dim, t=np.divide(target - norm_env_m, norm_env_std),W=np.diag(W_diag))
@@ -109,21 +115,24 @@ if __name__ == "__main__":
 
 	for i in range(len(ep_rewards)):
 		ep_rewards[i] = sum(all_Rs[i * T: i*T + T])
-
+	"""
 	for model in pilco.mgpr.models:
 		model.likelihood.variance.assign(0.05)
 		set_trainable(model.likelihood.variance, False)
-
+	"""
 	r_new = np.zeros((T, 1))
 	print('doing more rollouts, optimizing the model between each run')
 	for rollouts in range(num_rollouts):
 		print('	- optimizing models...')
 		pilco.optimize_models()
 		print('	- optimizing policy...')
-		pilco.optimize_policy(maxiter=25, restarts=0) #(maxiter=100, restarts=3) # 4 minutes when (1,0) #RESTART PROBLEMATIC? (25)
+		pilco.optimize_policy(maxiter=100, restarts=0) #(maxiter=100, restarts=3) # 4 minutes when (1,0) #RESTART PROBLEMATIC? (25)
 		#import pdb; pdb.set_trace()
 		X_new, Y_new, _, _, plot_data = utils.rollout_panda_norm(utils.gw, state_dim, X1, pilco=pilco, SUBS=SUBS, render=False)
-		
+		np.save('Admittance_data.npy',plot_data)
+		X = np.vstack((X, X_new)); Y = np.vstack((Y, Y_new))
+		pilco.mgpr.set_data((X, Y))
+		save_pilco_model(pilco,X1,X,Y,target, W_diag,save_path,rbf=False)
 		
 		for i in range(len(X_new)):
 			r_new[:, 0] = R.compute_reward(X_new[i,None,:-control_dim], 0.001 * np.eye(state_dim))[0] #-control_dim
@@ -132,13 +141,12 @@ if __name__ == "__main__":
 		_, _, r = pilco.predict(m_init, S_init, T)
 		
 		print("Total ", total_r, " Predicted: ", r)
-		X = np.vstack((X, X_new)); Y = np.vstack((Y, Y_new))
+		
 		all_Rs = np.vstack((all_Rs, r_new)); ep_rewards = np.vstack((ep_rewards, np.reshape(total_r,(1,1))))
-		pilco.mgpr.set_data((X, Y))
+		
+		utils.plot_run(plot_data)
 	
-	utils.plot_run(plot_data)
-
-	save_pilco_model(pilco,X1,X,Y,save_path,rbf=False)
+	
 
 	# Plot multi-step predictions manually
 	m_p = np.zeros((T, state_dim))

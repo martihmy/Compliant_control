@@ -72,7 +72,7 @@ Kd_r = np.array([[Kd_p, 0, 0, 0, 0], # Damping matrix
                 [0, 0, 0, 0, Kd_o]])
 
 Fd = 3
-PUBLISH_RATE = 50
+PUBLISH_RATE = 30
 T = 0.001*(1000/PUBLISH_RATE) # The control loop's time step
 duration = 5
 MAX_NUM_IT = int(duration*PUBLISH_RATE)

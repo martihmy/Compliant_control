@@ -8,6 +8,12 @@
     <include>
       <uri>model://sun</uri>
     </include>
+    
+    <include>
+      <uri>/home/martin/model_editor_models/soft_to_stiff_box_3kdG</uri>
+      <pose>1.5 0 0 0 0 0</pose>
+      <static>True</static>
+    </include>
 
     <physics type="ode">
       <real_time_update_rate>1000.0</real_time_update_rate>

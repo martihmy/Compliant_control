@@ -904,13 +904,110 @@ class ArmInterface(object):
         torque = alpha_torque + self.coriolis_comp().reshape([7,1]) - external_torque
         self.set_joint_torques(dict(list(zip(joint_names,torque))))
 
-    def get_state_space_HMFC(self,p_z_init,F_offset, p_x_d):
+    def get_state_space_HMFC(self,p_z_init,F_offset, p_x_d, force_hist,iteration,time_per_iteration):
         F = self.endpoint_effort()['force'][2]-F_offset
         delta_p_z = self.endpoint_pose()['position'][2]-p_z_init
         v_z = self.endpoint_velocity()['linear'][2]
         x_error = self.endpoint_pose()['position'][0] - p_x_d
-        state_list = [F, delta_p_z, v_z, x_error]
+        force_dot = get_derivative_of_vector(force_hist,iteration,time_per_iteration)[2]
+        state_list = [F, delta_p_z, v_z, x_error,force_dot]
+
         return tuple(state_list)
+
+    def get_6_dim_state_space(self,p_z_init,F_offset, Fd, p_x_d, force_hist,iteration,time_per_iteration):
+        F = self.endpoint_effort()['force'][2]-F_offset
+        delta_p_z = self.endpoint_pose()['position'][2]-p_z_init
+        v_z = self.endpoint_velocity()['linear'][2]
+        x_error = self.endpoint_pose()['position'][0] - p_x_d
+        force_dot = get_derivative_of_vector(force_hist,iteration,time_per_iteration)[2]
+        force_overshoot = max(F - (Fd+0.5),0)
+        state_list = [F, delta_p_z, v_z, x_error,force_dot, force_overshoot]
+
+        return tuple(state_list)
+    
+    def get_5_dim_state_space(self,p_z_init,F_offset, Fd, p_x_d, force_hist,iteration,time_per_iteration):
+        F = self.endpoint_effort()['force'][2]-F_offset
+        delta_p_z = self.endpoint_pose()['position'][2]-p_z_init
+        v_z = self.endpoint_velocity()['linear'][2]
+        x_error = self.endpoint_pose()['position'][0] - p_x_d
+        force_dot = get_derivative_of_vector(force_hist,iteration,time_per_iteration)[2]
+        #force_overshoot = max(F - Fd,0)
+        state_list = [F, delta_p_z, v_z, x_error,force_dot]#, force_overshoot]
+
+        return tuple(state_list)
+    
+    def get_4_dim_state_space(self,p_z_init,F_offset, Fd, p_x_d, force_hist,iteration,time_per_iteration):
+        F = self.endpoint_effort()['force'][2]-F_offset
+        delta_p_z = self.endpoint_pose()['position'][2]-p_z_init
+        v_z = self.endpoint_velocity()['linear'][2]
+        #x_error = self.endpoint_pose()['position'][0] - p_x_d
+        force_dot = get_derivative_of_vector(force_hist,iteration,time_per_iteration)[2]
+        #force_overshoot = max(F - Fd,0)
+        state_list = [F, delta_p_z, v_z, force_dot]
+
+        return tuple(state_list)
+
+    def get_3_dim_state_space(self,p_z_init,F_offset, Fd, p_x_d, force_hist,iteration,time_per_iteration):
+        F = self.endpoint_effort()['force'][2]-F_offset
+        delta_p_z = self.endpoint_pose()['position'][2]-p_z_init
+        v_z = self.endpoint_velocity()['linear'][2]
+
+        state_list = [F, delta_p_z, v_z]
+
+        return tuple(state_list)
+
+    def get_minimal_state_space(self,p_z_init,F_offset, Fd, p_x_d, force_hist,iteration,time_per_iteration):
+        F = self.endpoint_effort()['force'][2]-F_offset
+        delta_p_z = self.endpoint_pose()['position'][2]-p_z_init
+        v_z = self.endpoint_velocity()['linear'][2]
+        x_error = self.endpoint_pose()['position'][0] - p_x_d
+        #force_dot = get_derivative_of_vector(force_hist,iteration,time_per_iteration)[2]
+        #force_overshoot = max(F - Fd,0)
+        state_list = [F, delta_p_z, v_z, x_error]#,force_dot, force_overshoot]
+
+        return tuple(state_list)
+
+    def get_VIC_states(self,i,time_per_iteration, p_d, goal_ori, x_history, x_dot_history, sim):
+        #pose
+        pos_x = self.endpoint_pose()['position']
+        rel_ori = quatdiff_in_euler_radians(np.asarray(self.endpoint_pose()['orientation']), goal_ori)
+        x = np.append(pos_x,rel_ori)
+        x_history[:,i] = x
+        p = pos_x
+
+        #jacobian and inertia
+        jacobian = self.zero_jacobian()
+        robot_inertia = self.joint_inertia_matrix()
+        
+        #force
+        Fz = self.endpoint_effort()['force'][2]
+        if sim == False:
+            Fz = -Fz
+        F_ext = np.array([0,0,Fz,0,0,0])
+        F_ext_2D = np.array([0,0,Fz,0,0,0]).reshape([6,1])
+        
+        #velocity
+        x_dot = np.append(self.endpoint_velocity()['linear'],self.endpoint_velocity()['angular'])
+        x_dot_history[:,i] = x_dot
+
+        #deviation in pose
+        delta_pos = p_d - x[:3]
+        delta_ori = x[3:]
+        delta_x = np.append(delta_pos,delta_ori)
+
+        Rot_e = self.endpoint_pose()['orientation_R']
+        
+        return Rot_e, p,x,x_dot, x_history, x_dot_history, delta_x, jacobian,robot_inertia,Fz,F_ext,F_ext_2D, self.coriolis_comp()
+
+
+    def perform_torque_Huang1992(self,M, B, K, x_d_ddot, x_d_dot,x,x_dot, p_d, F_ext_2D, jacobian,robot_inertia,joint_names, delta_x):
+        a = np.linalg.multi_dot([jacobian.T,get_W(jacobian,robot_inertia,inv=True),np.linalg.inv(M)])
+        b = np.array([np.dot(M,x_d_ddot)]).reshape([6,1]) + np.array([np.dot(B,get_x_dot_delta(x_d_dot,x_dot))]).reshape([6,1]) + np.array([np.dot(K,np.array([delta_x]).reshape([6,1]))]).reshape([6,1])
+        c = self.coriolis_comp().reshape([7,1])
+        d = (np.identity(6)-np.dot(get_W(jacobian,robot_inertia,inv=True),np.linalg.inv(M))).reshape([6,6])
+        total_torque = np.array([np.dot(a,b)]).reshape([7,1]) + c + np.array([np.linalg.multi_dot([jacobian.T,d,F_ext_2D])]).reshape([7,1])
+        self.set_joint_torques(dict(list(zip(joint_names,total_torque))))
+
 
 
 def quatdiff_in_euler_radians(quat_curr, quat_des):
@@ -923,6 +1020,20 @@ def quatdiff_in_euler_radians(quat_curr, quat_des):
         vec = -vec
     return -des_mat.dot(vec)
 
+# Return the error in linear and angular velocities
+def get_x_dot_delta(x_d_dot,x_dot, two_dim = True):
+    if two_dim == True:
+        return (x_d_dot - x_dot).reshape([6,1])
+    else:
+        return x_d_dot - x_dot
+
+# Return the cartesian (task-space) inertia of the manipulator [alternatively the inverse of it]
+def get_W(jacobian,robot_inertia, inv = False):
+    W = np.linalg.multi_dot([jacobian,np.linalg.inv(robot_inertia),jacobian.T])
+    if inv == True:
+        return np.linalg.inv(W)
+    else:
+        return W
 
 # Calculate the numerical derivative of a each row in a vector
 def get_derivative_of_vector(history,iteration,time_per_iteration):
@@ -937,7 +1048,7 @@ def get_derivative_of_vector(history,iteration,time_per_iteration):
 
 if __name__ == '__main__':
     rospy.init_node('test')
-    r = Arm()
+    r = ArmInterface()
 
     rate = rospy.Rate(10)
     while not rospy.is_shutdown():

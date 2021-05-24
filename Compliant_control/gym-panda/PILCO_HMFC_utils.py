@@ -50,7 +50,7 @@ def plot_run(data,list_of_limits):
         if i >0:
             new_list[i] = adjusted_time_per_iteration[i]-adjusted_time_per_iteration[i-1]
 
-    plt.subplot(241)
+    plt.subplot(231)
     plt.title("External force")
     plt.plot(adjusted_time_per_iteration, data[0], label="force z [N]")
     plt.plot(adjusted_time_per_iteration, data[1], label="desired force z [N]", color='b',linestyle='dashed')
@@ -58,7 +58,7 @@ def plot_run(data,list_of_limits):
     plt.legend()
 
 
-    plt.subplot(242)
+    plt.subplot(232)
     plt.title("Position")
     plt.plot(adjusted_time_per_iteration, data[2], label = "true x [m]")
     plt.plot(adjusted_time_per_iteration, data[3], label = "true y [m]")
@@ -69,7 +69,7 @@ def plot_run(data,list_of_limits):
     plt.legend()
     
     
-    plt.subplot(243)
+    plt.subplot(233)
     plt.title("Orientation error")
     plt.plot(adjusted_time_per_iteration, data[7], label = "error  Ori_x ")
     plt.plot(adjusted_time_per_iteration, data[8], label = "error  Ori_y ")
@@ -78,13 +78,13 @@ def plot_run(data,list_of_limits):
     plt.legend()
 
     
-    plt.subplot(244)
+    plt.subplot(236)
     plt.title("Time per iteration")
     plt.plot(new_list, label = "time per iteration")
     plt.xlabel("iterations")
     plt.legend()
 
-    plt.subplot(245)
+    plt.subplot(234)
     plt.title("Varying damping (force)")
     plt.axhline(y=list_of_limits[1], label = 'upper bound', color='C1', linestyle = 'dashed')
     plt.plot(adjusted_time_per_iteration,data[11], label = "damping over time")
@@ -92,14 +92,14 @@ def plot_run(data,list_of_limits):
     plt.xlabel("iterations")
     plt.legend()
 
-    plt.subplot(246)
+    plt.subplot(235)
     plt.title("Varying stiffness (force)")
     plt.axhline(y=list_of_limits[3], label = 'upper bound', color='C1', linestyle = 'dashed')
     plt.plot(adjusted_time_per_iteration,data[12], label = "stiffness over time")
     plt.axhline(y=list_of_limits[2], label = 'lower bound', color='C1', linestyle = 'dashed')
     plt.xlabel("iterations")
     plt.legend()
-
+    """
     plt.subplot(247)
     plt.title("Varying stiffness (pos x and y)")
     plt.axhline(y=list_of_limits[5], label = 'upper bound', color='C1', linestyle = 'dashed')
@@ -107,6 +107,7 @@ def plot_run(data,list_of_limits):
     plt.axhline(y=list_of_limits[4], label = 'lower bound', color='C1', linestyle = 'dashed')
     plt.xlabel("iterations")
     plt.legend()
+	"""
 
 
     print('\a')
@@ -279,7 +280,8 @@ list_of_limits = np.array([KD_LAMBDA_LOWER, KD_LAMBDA_UPPER, KP_LAMBDA_LOWER, KP
 
 def policy_0(run, pilco, x, is_random):
 	if is_random:
-		time.sleep(0.35) #the delay is introduced to have a consistent time consumption whether is_random is True or False 
+		#time.sleep(0.35)#RBF-controller #the delay is introduced to have a consistent time consumption whether is_random is True or False 
+		time.sleep(0.05) #linear controller
 		if run == 0:
 			return [-1,random.uniform(-1,-0.8)]
 		elif run ==1:
@@ -287,7 +289,7 @@ def policy_0(run, pilco, x, is_random):
 		elif run ==2:
 			return [random.uniform(-0.75,0.25),random.uniform(0,0.3)]
 		else:
-			return [random.uniform(0,1),0.8]
+			return [random.uniform(-1,1),random.uniform(-1,1)]
 		
 	else:
 		tensorflow_format = pilco.compute_action(x[None, :])[0, :]

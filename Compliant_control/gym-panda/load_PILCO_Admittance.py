@@ -17,13 +17,13 @@ np.random.seed(0)
 
 from save_load_utils import load_pilco_model
 from save_load_utils import save_pilco_model
-import PILCO_VIC_utils as utils
+import PILCO_admittance_utils as utils
 
 np.set_printoptions(precision=2)
 
 
 """
-This script is running the Variable Impedance Controller in the PILCO/Gym-interface
+This script is loading and running the Admittance Controller in the PILCO/Gym-interface
 
 1) An agent is first performing random actions (no training) 
 	- the possible actions are increasing/deacreasing of damping and stiffness
@@ -35,7 +35,7 @@ This script is running the Variable Impedance Controller in the PILCO/Gym-interf
 
 
 
-list_of_limits = utils.list_of_limits
+#list_of_limits = utils.list_of_limits
 
 
 
@@ -45,17 +45,16 @@ if __name__ == "__main__":
 	print('')
 	print('started load_PILCO_VIC')
 
-	load_path ='/home/martin/PILCO/Compliant_panda/trained models/VIC_tac/0'
+	load_path = '/home/martin/PILCO/Compliant_panda/trained models/Admittance_tac'
 	save_path = load_path + '/0'
 
 	#reward= None
 	horizon = 25
-	rbf_status = False
 
-	pilco, X1, m_init, S_init, state_dim, X, Y, target, W_diag = load_pilco_model(load_path,horizon,rbf=rbf_status)
+	pilco, X1, m_init, S_init, state_dim, X, Y, target, W_diag = load_pilco_model(load_path,horizon,rbf=False)
 
 	_, _, _, _, _, data_for_plotting = utils.rollout_panda_norm(utils.gw, state_dim, X1, pilco=pilco, SUBS=utils.SUBS, render=False)
-	#utils.plot_run(data_for_plotting,list_of_limits)
+	utils.plot_run(data_for_plotting)#,list_of_limits)
 
 
 	num_rollouts = 2
@@ -63,7 +62,7 @@ if __name__ == "__main__":
 		print('optimizing models')
 		pilco.optimize_models()
 		print('optimizing policy')
-		pilco.optimize_policy(maxiter=100, restarts=0)
+		pilco.optimize_policy(maxiter=25, restarts=0)
 		print('performing rollout')
 		X_new, Y_new, _, _, T, data_for_plotting = utils.rollout_panda_norm(utils.gw, state_dim, X1, pilco=pilco, SUBS=utils.SUBS, render=False)
 	
@@ -72,16 +71,14 @@ if __name__ == "__main__":
 		pilco.mgpr.set_data((X, Y))
 
 		print('saving model as' + save_path)
-		save_pilco_model(pilco,X1,X,Y,target, W_diag,save_path,rbf=rbf_status)
+		save_pilco_model(pilco,X1,X,Y,target, W_diag,save_path,rbf=False)
 
 		print('making plot of most recent run')
-		np.save(save_path + '/vic_data_1.npy',data_for_plotting)
-		utils.plot_run(data_for_plotting,list_of_limits)
+		utils.plot_run(data_for_plotting)#,list_of_limits)
 		
 		print('doing one more run with same policy (testing consistency)')
 		X_new, Y_new, _, _, T, data_for_plotting = utils.rollout_panda_norm(utils.gw, state_dim, X1, pilco=pilco, SUBS=utils.SUBS, render=False)
-		np.save(save_path + '/vic_data_2.npy',data_for_plotting)
-		utils.plot_run(data_for_plotting,list_of_limits)
+		utils.plot_run(data_for_plotting)#,list_of_limits)
 	
 	
 	

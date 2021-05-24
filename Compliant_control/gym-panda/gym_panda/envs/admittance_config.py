@@ -22,14 +22,14 @@ DELTA_Xd_HORIZON = 10
 SIM_STATUS = True
 
 Fd = 3
-PUBLISH_RATE = 25#50
+PUBLISH_RATE = 50
 T = 0.001*(1000/PUBLISH_RATE) # The control loop's time step
 duration = 5#2#10#15
 MAX_NUM_IT = int(duration*PUBLISH_RATE)
 
 ALTERNATIVE_START = af.cartboard
 
-M = 5
+M = 50
 B_START = 75
 K_START = 150
 

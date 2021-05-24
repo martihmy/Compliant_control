@@ -138,15 +138,9 @@ def generate_Fd_advanced(max_num_it,T):
     return s
 
 # Generate a constant desired force [STABLE]
-def generate_F_d_constant(robot, max_num_it,T,sim):
-    a = np.zeros((6,max_num_it))
-    v = np.zeros((6,max_num_it))
+def generate_F_d_constant(max_num_it):
     s = np.zeros((6,max_num_it))
-    s[2,0]= 3#robot.get_Fz(sim)+3
-    for i in range(max_num_it):
-        if i>0:
-            v[2,i]=v[2,i-1]+a[2,i-1]*T
-            s[2,i]=s[2,i-1]+v[2,i-1]*T
+    s[2,:]= 3
     return s
 
 def generate_F_d_steep(robot, max_num_it,T,sim):
