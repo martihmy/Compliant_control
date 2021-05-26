@@ -4,7 +4,7 @@ import random
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-
+import timeit
 
 import execnet
 
@@ -39,7 +39,7 @@ controller = RbfController(state_dim=state_dim, control_dim=control_dim, num_bas
 
 gw = execnet.makegateway("popen//python=python2.7")
 
-SUBS = "5"
+#SUBS = "5"
 
 def plot_run(data,list_of_limits):
 
@@ -281,9 +281,9 @@ list_of_limits = np.array([KD_LAMBDA_LOWER, KD_LAMBDA_UPPER, KP_LAMBDA_LOWER, KP
 def policy_0(run, pilco, x, is_random):
 	if is_random:
 		#time.sleep(0.35)#RBF-controller #the delay is introduced to have a consistent time consumption whether is_random is True or False 
-		time.sleep(0.05) #linear controller
+		#time.sleep(0.05) #linear controller
 		if run == 0:
-			return [-1,random.uniform(-1,-0.8)]
+			return [random.uniform(-1,-0.95),random.uniform(-1,-0.8)]
 		elif run ==1:
 			return [random.uniform(-1,-0.5),random.uniform(-0.8,-0.6)]
 		elif run ==2:
@@ -292,17 +292,16 @@ def policy_0(run, pilco, x, is_random):
 			return [random.uniform(-1,1),random.uniform(-1,1)]
 		
 	else:
+		numpy_format = pilco.compute_action(x[None, :],realtime=True)[0, :]
+		return numpy_format.tolist()
+
+		#if using rbf:
+		"""
 		tensorflow_format = pilco.compute_action(x[None, :])[0, :]
 		numpy_format = tensorflow_format.numpy()
 		return numpy_format.tolist()
 		"""
-		try:
-			tensorflow_format = pilco.compute_action(x[None, :])[0, :]
-			numpy_format = tensorflow_format.numpy()
-			return numpy_format.tolist()
-		except:
-			return [0,0,0]
-		"""
+
 
 def plot_prediction(pilco,T,state_dim,X_new,m_init,S_init):
 	# Plot multi-step predictions manually

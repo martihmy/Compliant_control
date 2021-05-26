@@ -102,9 +102,10 @@ class VIC_Env(gym.Env):
         
         self.Rot_e, self.p, self.x, self.x_dot, self.x_history, self.x_dot_history, self.delta_x, self.jacobian, self.robot_inertia, self.Fz, self.F_ext, self.F_ext_2D, self.coriolis_comp  = self.robot.get_VIC_states(self.iteration,self.time_per_iteration, self.p_d[:,self.iteration], self.goal_ori,self.x_history, self.x_dot_history, self.sim)
         self.Fz -= self.Fz_offset
-        self.F_ext[2] -=  self.Fz_offset
-        self.F_ext_2D[2] -=  self.Fz_offset
-        # GOTTEN THIS FAR!
+	if cfg.ADD_NOISE:
+		self.Fz += np.random.normal(0,abs(self.Fz*cfg.NOISE_FRACTION))
+        self.F_ext[2] = self.Fz
+        self.F_ext_2D[2] = self.Fz
 
     
         # add new state to history
@@ -148,7 +149,9 @@ class VIC_Env(gym.Env):
             done = False
             placeholder = None
 
-        self.state = self.robot.get_6_dim_state_space(self.p_z_init,self.Fz_offset,self.f_d[2,self.iteration] ,self.p_d[0,self.iteration],self.h_e_hist,self.iteration,self.time_per_iteration)
+        self.state = self.robot.get_3_dim_state_space(self.p_z_init,self.Fz_offset,self.f_d[2,self.iteration] ,self.p_d[0,self.iteration],self.h_e_hist,self.iteration,self.time_per_iteration)
+        if cfg.ADD_NOISE:
+            self.state = [self.state[0] + np.random.normal(0,abs(self.state[0]*cfg.NOISE_FRACTION)), self.state[1],self.state[2]]
         self.iteration +=1
         rate = self.rate
         rate.sleep()
@@ -204,7 +207,7 @@ class VIC_Env(gym.Env):
         #array with data meant for plotting
         self.data_for_plotting = np.zeros((17,self.max_num_it))
 
-        self.state = self.robot.get_6_dim_state_space(self.p_z_init,self.Fz_offset,self.f_d[2,self.iteration] ,self.p_d[0,self.iteration],self.h_e_hist,self.iteration,self.time_per_iteration)
+        self.state = self.robot.get_3_dim_state_space(self.p_z_init,self.Fz_offset,self.f_d[2,self.iteration] ,self.p_d[0,self.iteration],self.h_e_hist,self.iteration,self.time_per_iteration)
         return np.array(self.state)
 
 

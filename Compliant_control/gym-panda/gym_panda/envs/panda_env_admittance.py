@@ -204,6 +204,8 @@ class AdmittanceEnv(gym.Env):
         robot = self.robot
         self.x, self.Fz = robot.fetch_states_admittance(self.sim)
         self.Fz -= self.Fz_offset
+	if cfg.ADD_NOISE:
+		self.Fz += np.random.normal(0,abs(self.Fz*cfg.NOISE_FRACTION))
 
     def update_history(self):
         self.history[0,self.iteration] = self.Fz

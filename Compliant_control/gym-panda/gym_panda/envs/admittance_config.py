@@ -20,8 +20,10 @@ DELTA_Xd_SIZE = 10
 DELTA_Xd_HORIZON = 10
 
 SIM_STATUS = True
+ADD_NOISE = False
+NOISE_FRACTION = 0.01 #standard deviation of the noise is 1 % of the force-value
 
-Fd = 0#3
+Fd = 3
 PUBLISH_RATE = 50
 T = 0.001*(1000/PUBLISH_RATE) # The control loop's time step
 duration = 5#2#10#15

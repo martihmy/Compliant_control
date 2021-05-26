@@ -8,6 +8,8 @@ from gym import spaces
 from gym_panda.envs import HMFC_func as func
 
 SIM_STATUS = True
+ADD_NOISE = False
+NOISE_FRACTION = 0.01 #standard deviation of the noise is 1 % of the force-value
 
 #ACTION SPACE
 KD_LAMBDA_LOWER = 0

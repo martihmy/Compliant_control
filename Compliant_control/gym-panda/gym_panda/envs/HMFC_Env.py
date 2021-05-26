@@ -109,6 +109,8 @@ class HMFC_Env(gym.Env):
         self.time_per_iteration[self.iteration] = rospy.get_time()
         self.F, self.h_e, self.ori, self.p, self.x, self.J, self.v, self.joint_v = self.robot.get_HMFC_states(self.x_hist,self.iteration,self.time_per_iteration, self.goal_ori, self.joint_names, self.sim)
         self.F -= self.F_offset
+        if cfg.ADD_NOISE:
+		    self.F += np.random.normal(0,abs(self.F*cfg.NOISE_FRACTION))  
         self.h_e[2] -=  self.F_offset
         # add new state to history
         self.p_hist[:,self.iteration],self.x_hist[:,self.iteration],self.h_e_hist[:,self.iteration] = self.p,self.x, self.h_e
@@ -157,6 +159,9 @@ class HMFC_Env(gym.Env):
 
         #self.state = self.robot.get_state_space_HMFC(self.p_z_init,self.F_offset,self.p_d[0,self.iteration],self.h_e_hist,self.iteration,self.time_per_iteration)
         self.state = self.robot.get_3_dim_state_space(self.p_z_init,self.F_offset,self.f_d[self.iteration],self.p_d[0,self.iteration],self.h_e_hist,self.iteration,self.time_per_iteration)
+        #adding noise to force measurements (robustness)
+        if cfg.ADD_NOISE:	
+            self.state = [self.state[0] + np.random.normal(0,abs(self.state[0]*cfg.NOISE_FRACTION)), self.state[1],self.state[2]]
         self.iteration +=1
         rate = self.rate
         rate.sleep()

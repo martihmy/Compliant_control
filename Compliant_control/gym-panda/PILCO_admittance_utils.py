@@ -255,6 +255,5 @@ def policy_0(pilco, x, is_random):
 	if is_random:
 		return [random.uniform(-1,1),random.uniform(-1,1)] #random in range cfg.action-space IS
 	else:
-		tensorflow_format = pilco.compute_action(x[None, :])[0, :]
-		numpy_format = tensorflow_format.numpy()
+		numpy_format = pilco.compute_action(x[None, :],realtime=True)[0, :]
 		return numpy_format.tolist()

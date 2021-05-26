@@ -36,9 +36,10 @@ This script is running the Variable Impedance Controller in the PILCO/Gym-interf
 """
 
 
-save_path = '/home/martin/PILCO/Compliant_panda/trained models/VIC_linear'
+save_path = '/home/martin/PILCO/Compliant_panda/trained models/make_time_figure_rbf'
 
 # rewards
+
 F_weight = 5 #10, 1 
 Xpos_weight = 0 #0.1
 F_dot_weight = 0.1
@@ -48,14 +49,15 @@ if __name__ == "__main__":
 	print('started PILCO_VIC')
 	gw = execnet.makegateway("popen//python=python2.7")
 	
-	num_rollouts = 4
-	SUBS = "5"
+	random_rollouts = 2
+	num_rollouts = 4 #optimization
+	SUBS = "1"
+	horizon_fraq = 1/10
 
 	print('starting first rollout')
 	
 	X1,Y1, _, _,T,data_for_plotting = utils.rollout_panda(gw, pilco=None, random=True, SUBS=SUBS, render=False) # function imported from PILCO (EXAMPLES/UTILS)
 	rollout = 0
-	np.save(save_path + '/testing_' + str(rollout) + '.npy',data_for_plotting)
 	utils.plot_run(data_for_plotting,list_of_limits)
 
 	"""
@@ -68,8 +70,8 @@ if __name__ == "__main__":
 	print('gathering more data...')
 	
 	
-	for i in range(1,num_rollouts):
-		print('	- At rollout ',i+1, ' out of ',num_rollouts)
+	for i in range(1,random_rollouts):
+		print('	- At rollout ',i+1, ' out of ',random_rollouts)
 		X1_, Y1_,_,_,_, data_for_plotting = utils.rollout_panda(gw, pilco=None, random=True, SUBS=SUBS, render=False)
 		X1 = np.vstack((X1, X1_))
 		Y1 = np.vstack((Y1, Y1_))
@@ -100,9 +102,11 @@ if __name__ == "__main__":
 	rbf_status = False
 	
 	target = np.zeros(state_dim)
-	target[0] = 3 #desired force (must also be specified in the controller as this one is just related to rewards)
+	target[0] = 3
 	W_diag = np.zeros(state_dim)
-	W_diag[0],W_diag[3],  = F_weight, Xpos_weight
+	W_diag[0] = F_weight
+	if state_dim >3:
+		W_diag[3]  = Xpos_weight
 	if state_dim >= 5:
 		W_diag[4] = F_dot_weight
 	if state_dim >= 6: 
@@ -113,7 +117,7 @@ if __name__ == "__main__":
 	R = ExponentialReward(state_dim=state_dim, t=np.divide(target - norm_env_m, norm_env_std),W=np.diag(W_diag))
 
 
-	pilco = PILCO((X, Y), controller=controller, horizon=int(T/2), reward=R, m_init=m_init, S_init=S_init)
+	pilco = PILCO((X, Y), controller=controller, horizon=int(T*horizon_fraq), reward=R, m_init=m_init, S_init=S_init)
 
 	best_r = 0
 	all_Rs = np.zeros((X.shape[0], 1))
@@ -136,7 +140,7 @@ if __name__ == "__main__":
 		pilco.optimize_models()
 		print('	- optimizing policy...')
 		try:
-			pilco.optimize_policy(maxiter=100, restarts=0) #(maxiter=100, restarts=3) # 4 minutes when (1,0) #RESTART PROBLEMATIC? (25)
+			pilco.optimize_policy(maxiter=300, restarts=0) #(maxiter=100, restarts=3) # 4 minutes when (1,0) #RESTART PROBLEMATIC? (25)
 		except:
 			print('policy-optimization failed')#import pdb; pdb.set_trace()
 		X_new, Y_new, _, _,_, data_for_plotting = utils.rollout_panda_norm(gw, state_dim, X1, pilco=pilco, SUBS=SUBS, render=False)
@@ -147,13 +151,17 @@ if __name__ == "__main__":
 		total_r = sum(r_new)
 		#_, _, r = pilco.predict(m_init, S_init, T)
 		
-		print("Total ", total_r, " Predicted: ", r)
+		#print("Total ", total_r, " Predicted: ", r)
 		X = np.vstack((X, X_new)); Y = np.vstack((Y, Y_new))
 		all_Rs = np.vstack((all_Rs, r_new)); ep_rewards = np.vstack((ep_rewards, np.reshape(total_r,(1,1))))
 		pilco.mgpr.set_data((X, Y))
 		save_pilco_model(pilco,X1,X,Y,target,W_diag,save_path,rbf=rbf_status)
 		np.save(save_path + '/vic_data_' + str(rollouts) + '.npy',data_for_plotting)
-		utils.plot_run(data_for_plotting, list_of_limits)
+		#utils.plot_run(data_for_plotting, list_of_limits)
+	
+	for i in range(5):
+		X_new, Y_new, _, _,_, data_for_plotting = utils.rollout_panda_norm(gw, state_dim, X1, pilco=pilco, SUBS=SUBS, render=False)
+		np.save(save_path + '/vic_data_final_' + str(i) + '.npy',data_for_plotting)
 	
 	
 

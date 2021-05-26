@@ -38,7 +38,7 @@ This script is running the Hybrid Motion/Force Controller in the PILCO/Gym-inter
 
 list_of_limits = utils.list_of_limits
 
-save_path = '/home/martin/PILCO/Compliant_panda/trained models/HMFC_linear_3_states_dualEnv_freqActions_Optx2'
+save_path = '/home/martin/PILCO/Compliant_panda/trained models/HYbrid_bull'
 
 # rewards
 F_weight = 5 #2
@@ -50,16 +50,16 @@ if __name__ == "__main__":
 	print('started PILCO_HMFC')
 	gw = execnet.makegateway("popen//python=python2.7")
 	
-	num_randomised_rollouts = 5
-	num_rollouts = 14
+	num_randomised_rollouts = 1
+	num_rollouts = 1
 
-	SUBS = "3"
-	horizon_fraq = 1/5
+	SUBS = "1"
+	horizon_fraq = 1/10
 
 	print('starting first rollout')
 	
 	X1,Y1, _, _,T,data_for_plotting = utils.rollout_panda(0,gw, pilco=None, random=True, SUBS=SUBS, render=False) # function imported from PILCO (EXAMPLES/UTILS)
-	utils.plot_run(data_for_plotting,list_of_limits)
+	#utils.plot_run(data_for_plotting,list_of_limits)
 
 	"""
 	These initial rollouts with "random=True" is just gathering data so that we can make a model of the systems dynamics (performing random actions)
@@ -76,7 +76,7 @@ if __name__ == "__main__":
 		X1_, Y1_,_,_,_, data_for_plotting = utils.rollout_panda(i,gw, pilco=None, random=True, SUBS=SUBS, render=False)
 		X1 = np.vstack((X1, X1_))
 		Y1 = np.vstack((Y1, Y1_))
-		utils.plot_run(data_for_plotting, list_of_limits)
+		#utils.plot_run(data_for_plotting, list_of_limits)
 	
 	
 	
