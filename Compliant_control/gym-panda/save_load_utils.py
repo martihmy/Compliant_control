@@ -25,6 +25,23 @@ def save_pilco_model(pilco_object,X1,X,Y,target,W_diag,path,rbf=True):
     np.savetxt(path + '/W_diag.csv', W_diag, delimiter=',')
 
 
+def save_minimal_pilco_model(pilco_object,X1,X_new,Y_new,target,W_diag,path,rbf=True):
+    for i,m in enumerate(pilco_object.mgpr.models):
+        tf.saved_model.save(m,path + '/model'+ str(i) )
+
+    if rbf:
+        for i,m in enumerate(pilco_object.controller.models):
+            tf.saved_model.save(m,path + '/control_model'+ str(i) )
+
+
+    np.savetxt(path + '/X1.csv', X1, delimiter=',')
+    np.savetxt(path + '/X.csv', X_new, delimiter=',')
+    np.savetxt(path + '/Y.csv', Y_new, delimiter=',')
+    
+    np.savetxt(path + '/target.csv', target, delimiter=',')
+    np.savetxt(path + '/W_diag.csv', W_diag, delimiter=',')
+
+
 def load_pilco_model(path, horizon, rbf=True):
     #saved_data = tf.saved_model.load(path)
     X1 = np.loadtxt(path + '/X1.csv', delimiter=',')

@@ -59,7 +59,9 @@ if __name__ == "__main__":
 	print('starting first rollout')
 	
 	X1,Y1, _, _,T,data_for_plotting = utils.rollout_panda(0,gw, pilco=None, random=True, SUBS=SUBS, render=False) # function imported from PILCO (EXAMPLES/UTILS)
-	#utils.plot_run(data_for_plotting,list_of_limits)
+	np.save('/home/martin/Figures master/data from runs/no training' + '/hmfc_data_dualEnv.npy',data_for_plotting)
+	utils.plot_run(data_for_plotting,list_of_limits)
+
 
 	"""
 	These initial rollouts with "random=True" is just gathering data so that we can make a model of the systems dynamics (performing random actions)

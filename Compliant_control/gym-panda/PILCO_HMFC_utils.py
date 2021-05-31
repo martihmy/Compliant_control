@@ -282,6 +282,7 @@ def policy_0(run, pilco, x, is_random):
 	if is_random:
 		#time.sleep(0.35)#RBF-controller #the delay is introduced to have a consistent time consumption whether is_random is True or False 
 		#time.sleep(0.05) #linear controller
+		"""
 		if run == 0:
 			return [random.uniform(-1,-0.95),random.uniform(-1,-0.8)]
 		elif run ==1:
@@ -290,6 +291,8 @@ def policy_0(run, pilco, x, is_random):
 			return [random.uniform(-0.75,0.25),random.uniform(0,0.3)]
 		else:
 			return [random.uniform(-1,1),random.uniform(-1,1)]
+		"""
+		return [0,-0.5]
 		
 	else:
 		numpy_format = pilco.compute_action(x[None, :],realtime=True)[0, :]

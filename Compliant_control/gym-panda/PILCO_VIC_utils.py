@@ -305,6 +305,7 @@ def policy_0(pilco, x, is_random):
 	if is_random:
 		#time.sleep(0.35) #the delay is introduced to have a consistent time consumption whether is_random is True or False 
 		#time.sleep(0.05)
+		#return [-0.7,-0.7]
 		return [random.uniform(-1,1),random.uniform(-1,1)]##the actions are scaled inside of panda_rollout...
 		
 	else:

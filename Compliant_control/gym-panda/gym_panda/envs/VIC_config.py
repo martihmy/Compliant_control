@@ -8,8 +8,8 @@ from gym import spaces
 #from gym_panda.envs import VIC_func as func
 
 SIM_STATUS = True
-ADD_NOISE = False
-NOISE_FRACTION = 0.01 #standard deviation of the noise is now 1 % of the force-value
+ADD_NOISE = True
+NOISE_FRACTION = 0.015 #standard deviation of the noise is now 1 % of the force-value
 
 Fd = 3
 PUBLISH_RATE = 30

@@ -11,13 +11,22 @@ from PILCO_VIC_utils import list_of_limits as VIC_limits
 
 from PILCO_admittance_utils import plot_run as plot_Admittance
 
-load_path = '/home/martin/PILCO/Compliant_panda/trained models/VIC_c-lin_subs-1_dur-4.5_N-OFF/vic_data_final_'#_0.npy'
-#data = np.load(load_path)
+load_path = '/home/martin/PILCO/Compliant_panda/trained models/Admittance_master_1sub/admittance_data_final_'#_0.npy'
 
-#plot_HMFC(data,HMFC_limits)
-for i in range(5):
+"""
+single_path = '/home/martin/PILCO/Compliant_panda/trained models/Admittance_master_2subs/admittance_data_4.npy'
+single = np.load(single_path)
+plot_Admittance(single)#,HMFC_limits)
+
+"""
+for i in range(10):
+    
     full_load_path = load_path + str(i) + '.npy'
     data= np.load(full_load_path)
-    plot_VIC(data,VIC_limits)
+    #plot_VIC(data,VIC_limits)
+    #plot_HMFC(data,HMFC_limits)
+    plot_Admittance(data)
+    
+    
 
 #plot_Admittance(data)

@@ -8,8 +8,12 @@ from gym import spaces
 from gym_panda.envs import HMFC_func as func
 
 SIM_STATUS = True
-ADD_NOISE = False
-NOISE_FRACTION = 0.01 #standard deviation of the noise is 1 % of the force-value
+ADD_NOISE = True
+NOISE_FRACTION = 0.015 #standard deviation of the noise is 1 % of the force-value
+
+Fd = 3
+PUBLISH_RATE = 30
+duration = 5
 
 #ACTION SPACE
 KD_LAMBDA_LOWER = 0
@@ -73,10 +77,8 @@ Kd_r = np.array([[Kd_p, 0, 0, 0, 0], # Damping matrix
                 [0, 0, 0, Kd_o, 0],
                 [0, 0, 0, 0, Kd_o]])
 
-Fd = 3
-PUBLISH_RATE = 30
+
 T = 0.001*(1000/PUBLISH_RATE) # The control loop's time step
-duration = 5
 MAX_NUM_IT = int(duration*PUBLISH_RATE)
 ALTERNATIVE_START = {'panda_joint1': 1.5100039307153879, 'panda_joint2': 0.6066719992230666, 'panda_joint3': 0.024070900507747097, 'panda_joint4': -2.332000750114692, 'panda_joint5': -0.037555063873529436, 'panda_joint6': 2.9529732850154575, 'panda_joint7': 0.7686490028450895}
 

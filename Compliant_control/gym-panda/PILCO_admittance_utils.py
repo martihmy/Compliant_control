@@ -57,10 +57,11 @@ def plot_run(history):
 		plt.legend()
 
 		plt.subplot(232)
-		plt.title("Positional adjustments in z")
-		plt.plot(offset_free_time, history[6,:], label = "true  z [m]")
-		plt.plot(offset_free_time, history[11,:], label = "desired z [m]",linestyle='dashed')
-		plt.plot(offset_free_time, history[7,:], label = "compliant z [m]",linestyle='dotted')
+		plt.title("Positional adjustments in z relative to surface")
+		start_p = history[11,0]
+		plt.plot(offset_free_time, (history[6,:] - start_p)*1000, label = "true  z [mm]")
+		plt.plot(offset_free_time, (history[11,:] - start_p)*1000, label = "desired z [mm]",linestyle='dashed')
+		plt.plot(offset_free_time, (history[7,:] - start_p)*1000, label = "compliant z [mm]",linestyle='dotted')
 		plt.xlabel("Real time [s]")
 		plt.legend()
 
@@ -75,20 +76,28 @@ def plot_run(history):
 
 		plt.subplot(234)
 		plt.title("Varying damping")
-		plt.axhline(y=95, label = 'upper bound', color='C1', linestyle = 'dashed')
+		plt.axhline(y=400, label = 'upper bound', color='C1', linestyle = 'dashed')
 		plt.plot(offset_free_time, history[2,:], label="damping (B)")
-		plt.axhline(y=55, label = 'lower bound', color='C1', linestyle = 'dashed')
+		plt.axhline(y=150, label = 'lower bound', color='C1', linestyle = 'dashed')
 		plt.xlabel("Real time [s]")
 		plt.legend()
 
 		plt.subplot(235)
 		plt.title("Varying stiffness")
-		plt.axhline(y=170, label = 'upper bound', color='C1', linestyle = 'dashed')
+		plt.axhline(y=500, label = 'upper bound', color='C1', linestyle = 'dashed')
 		plt.plot(offset_free_time, history[3,:], label="stiffness (K)")
-		plt.axhline(y=130, label = 'lower bound', color='C1', linestyle = 'dashed')
+		plt.axhline(y=200, label = 'lower bound', color='C1', linestyle = 'dashed')
 		plt.xlabel("Real time [s]")
 		plt.legend()
-
+		"""
+		plt.subplot(236)
+		plt.title("Deviation from desired orientation")
+		plt.plot(offset_free_time, history[12], label = "quaternion x")
+		plt.plot(offset_free_time, history[13], label = "quaternion y")
+		plt.plot(offset_free_time, history[14], label = "quaternion z")
+		plt.xlabel("Real time [s]")
+		plt.legend()
+		"""
 		plt.subplot(236)
 		plt.title("Time per iteration")
 		plt.plot(T_list, label = "time per iteration")
@@ -96,6 +105,7 @@ def plot_run(history):
 		#plt.axhline(np.mean(new_list), label = 'mean', color='red', linestyle = 'dashed')
 		plt.xlabel("iterations")
 		plt.legend()
+		
 
 		plt.show()
 
@@ -204,8 +214,8 @@ def rollout_panda(gateway, pilco, verbose=False, random=False, SUBS=1, render=Fa
 				scaled_B = u[0]*125+275
 				scaled_K = u[1]*150+350
 
-			elif math.fmod(timestep,4) == 0:
-				if math.fmod(timestep,8) == 0:
+			elif math.fmod(timestep,8) == 0:
+				if math.fmod(timestep,16) == 0:
 					scaled_B = u[0]*125+275
 				else:
 					scaled_K = u[1]*150+350
@@ -254,6 +264,7 @@ def rollout_panda(gateway, pilco, verbose=False, random=False, SUBS=1, render=Fa
 def policy_0(pilco, x, is_random):
 	if is_random:
 		return [random.uniform(-1,1),random.uniform(-1,1)] #random in range cfg.action-space IS
+		#return [0,0]
 	else:
 		numpy_format = pilco.compute_action(x[None, :],realtime=True)[0, :]
 		return numpy_format.tolist()
