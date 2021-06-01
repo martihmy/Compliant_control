@@ -737,30 +737,43 @@ class PandaArm(franka_interface.ArmInterface):
 
         return success, soln
 
-    def fetch_states_admittance(self,sim):
+    def fetch_states_admittance(self,sim, goal_ori):
         x = self.endpoint_pose()['position']
         if sim:
             Fz = self.endpoint_effort()['force'][2]
         else:
             Fz = - self.endpoint_effort()['force'][2]
-        return x,Fz
+        ori = self.endpoint_pose()['orientation']
+        ori_E =quatdiff_in_euler_radians(np.asarray(ori), goal_ori)
+        
+        return x,Fz, ori_E
 
     def perform_admittance(self,x_d,E,ori_d):
         x_c = x_d + E
         desired_joint_angles = self.inverse_kinematics(x_c,ori=ori_d)[1]
         self.exec_position_cmd(desired_joint_angles)
-
+    """
     def move_to_start(self,alternative_position, sim):
         if sim:
             self.move_to_neutral()
         else:
             self.move_to_joint_positions(alternative_position)
-
+    """
     def get_Fz(self,sim):
         if sim:
             return self.endpoint_effort()['force'][2]
         else:
             return -self.endpoint_effort()['force'][2]
+
+def quatdiff_in_euler_radians(quat_curr, quat_des):
+    curr_mat = quaternion.as_rotation_matrix(quat_curr)
+    des_mat = quaternion.as_rotation_matrix(quat_des)
+    rel_mat = des_mat.T.dot(curr_mat)
+    rel_quat = quaternion.from_rotation_matrix(rel_mat)
+    vec = quaternion.as_float_array(rel_quat)[1:]
+    if rel_quat.w < 0.0:
+        vec = -vec
+    return -des_mat.dot(vec)
 
 def main():
     rospy.init_node("panda_arm_untuck")

@@ -858,11 +858,15 @@ class ArmInterface(object):
         """
         return self._frames_interface
 
-    def move_to_start(self,alternative_position, sim):
+    def move_to_start(self,cartboard_position, red_position, sim, start_neutral = True):
         if sim:
-            self.move_to_neutral()
+            if start_neutral:
+                self.move_to_neutral()
+            else:
+                self.move_to_joint_positions(red_position)
+
         else:
-            self.move_to_joint_positions(alternative_position)
+            self.move_to_joint_positions(cartboard_position)
 
     def get_v(self, x_hist,i,time_per_iteration, numerically=False, two_dim=True):
         if numerically == True:
