@@ -58,7 +58,7 @@ def load_pilco_model(path, horizon, rbf=True):
     norm_env_std = np.std(X1[:,:state_dim], 0)
 
     m_init =  np.transpose(X[0,:-control_dim,None])
-    S_init =  0 * np.eye(state_dim)
+    S_init =  0.001 * np.eye(state_dim)
 
     if rbf:
         controller = RbfController(state_dim=state_dim, control_dim=control_dim, num_basis_functions=15) #not correct for admittance control

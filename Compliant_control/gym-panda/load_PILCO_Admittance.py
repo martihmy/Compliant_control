@@ -45,48 +45,46 @@ if __name__ == "__main__":
 	print('')
 	print('started load_PILCO_VIC')
 
-	load_path = '/home/martin/PILCO/Compliant_panda/trained models/Admittance_tac'
+	load_path = '/home/martin/PILCO/Compliant_panda/trained models/Admittance_master_1sub_2'
 	save_path = load_path + '/0'
 
 	#reward= None
-	horizon = 25
+	horizon = 15
+	SUBS = '1'
 
 	pilco, X1, m_init, S_init, state_dim, X, Y, target, W_diag = load_pilco_model(load_path,horizon,rbf=False)
 
-	_, _, _, _, _, data_for_plotting = utils.rollout_panda_norm(utils.gw, state_dim, X1, pilco=pilco, SUBS=utils.SUBS, render=False)
+	_, _, _, _, data_for_plotting = utils.rollout_panda_norm(utils.gw, state_dim, X1, pilco=pilco, SUBS=SUBS, render=False)
 	utils.plot_run(data_for_plotting)#,list_of_limits)
 
 
-	num_rollouts = 2
+	num_rollouts = 3
 	for rollouts in range(num_rollouts):
 		print('optimizing models')
 		pilco.optimize_models()
 		print('optimizing policy')
-		pilco.optimize_policy(maxiter=25, restarts=0)
+		pilco.optimize_policy(maxiter=300, restarts=0)
 		print('performing rollout')
-		X_new, Y_new, _, _, T, data_for_plotting = utils.rollout_panda_norm(utils.gw, state_dim, X1, pilco=pilco, SUBS=utils.SUBS, render=False)
-	
+		X_new, Y_new, _, _, data_for_plotting = utils.rollout_panda_norm(utils.gw, state_dim, X1, pilco=pilco, SUBS=SUBS, render=False)
+
 		X = np.vstack((X, X_new)); Y = np.vstack((Y, Y_new))
 		print('adding data to data sets X and Y')
 		pilco.mgpr.set_data((X, Y))
 
 		print('saving model as' + save_path)
 		save_pilco_model(pilco,X1,X,Y,target, W_diag,save_path,rbf=False)
-
+		np.save(save_path + '/admittance_data_' + str(rollouts) + '.npy',data_for_plotting)
 		print('making plot of most recent run')
-		utils.plot_run(data_for_plotting)#,list_of_limits)
+		#utils.plot_run(data_for_plotting)#,list_of_limits)
 		
-		print('doing one more run with same policy (testing consistency)')
-		X_new, Y_new, _, _, T, data_for_plotting = utils.rollout_panda_norm(utils.gw, state_dim, X1, pilco=pilco, SUBS=utils.SUBS, render=False)
-		utils.plot_run(data_for_plotting)#,list_of_limits)
-	
-	
-	
+		
+	print('doing more runs with same policy (testing consistency)')
+	for i in range(5):
+		X_new, Y_new, _, _, data_for_plotting = utils.rollout_panda_norm(utils.gw, state_dim, X1, pilco=pilco, SUBS=SUBS, render=False)
+		np.save(save_path + '/admittance_data_final_' + str(i) + '.npy',data_for_plotting)
 	
 	
 
-	print('making plots of the multi-step predictions')
-	utils.plot_prediction(pilco,T,state_dim,X_new, m_init,S_init)
 	
 
 

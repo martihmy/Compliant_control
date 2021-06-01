@@ -21,6 +21,7 @@ import PILCO_HMFC_utils as utils
 
 from save_load_utils import load_pilco_model
 from save_load_utils import save_pilco_model
+from save_load_utils import save_minimal_pilco_model
 np.set_printoptions(precision=2)
 
 
@@ -38,7 +39,7 @@ This script is running the Hybrid Motion/Force Controller in the PILCO/Gym-inter
 
 list_of_limits = utils.list_of_limits
 
-save_path = '/home/martin/PILCO/Compliant_panda/trained models/HYbrid_bull'
+save_path = '/home/martin/PILCO/Compliant_panda/trained models/HMFC_MASTER'
 
 # rewards
 F_weight = 5 #2
@@ -50,7 +51,7 @@ if __name__ == "__main__":
 	print('started PILCO_HMFC')
 	gw = execnet.makegateway("popen//python=python2.7")
 	
-	num_randomised_rollouts = 1
+	num_randomised_rollouts = 4
 	num_rollouts = 1
 
 	SUBS = "1"
@@ -59,7 +60,7 @@ if __name__ == "__main__":
 	print('starting first rollout')
 	
 	X1,Y1, _, _,T,data_for_plotting = utils.rollout_panda(0,gw, pilco=None, random=True, SUBS=SUBS, render=False) # function imported from PILCO (EXAMPLES/UTILS)
-	np.save('/home/martin/Figures master/data from runs/no training' + '/hmfc_data_dualEnv.npy',data_for_plotting)
+	#np.save('/home/martin/Figures master/data from runs/no training' + '/hmfc_data_dualEnv.npy',data_for_plotting)
 	utils.plot_run(data_for_plotting,list_of_limits)
 
 
@@ -165,7 +166,7 @@ if __name__ == "__main__":
 		X = np.vstack((X, X_new)); Y = np.vstack((Y, Y_new))
 		all_Rs = np.vstack((all_Rs, r_new)); ep_rewards = np.vstack((ep_rewards, np.reshape(total_r,(1,1))))
 		pilco.mgpr.set_data((X, Y))
-		save_pilco_model(pilco,X1,X,Y,target,W_diag,save_path,rbf=rbf_status)
+		save_minimal_pilco_model(pilco,X1,X,Y,target,W_diag,save_path,rbf=rbf_status)
 		np.save(save_path + '/hmfc_data_' + str(rollouts) + '.npy',data_for_plotting)
 		#utils.plot_run(data_for_plotting, list_of_limits)
 	
@@ -185,6 +186,8 @@ if __name__ == "__main__":
 	for h in range(1, T):
 		m_p[h,:], S_p[h,:,:] = pilco.propagate(m_p[h-1, None, :], S_p[h-1,:,:])
 
+	np.save(save_path + '/GP__m_p.npy',m_p)
+	np.save(save_path + '/GP__S_p.npy',S_p)
 	for i in range(state_dim):
 		plt.plot(range(T-1), m_p[0:T-1, i], X_new[1:T, i]) # can't use Y_new because it stores differences (Dx)
 		plt.fill_between(range(T-1),
