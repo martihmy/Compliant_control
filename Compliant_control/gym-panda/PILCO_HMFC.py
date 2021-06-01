@@ -164,7 +164,7 @@ if __name__ == "__main__":
 		
 		#print("Total ", total_r, " Predicted: ", r)
 		if len(X)*state_dim >= 2250: 
-			X,Y = utils.delete_oldest_rollout(X1,Y1,T)
+			X,Y = utils.delete_oldest_rollout(X,Y,T)
 		X = np.vstack((X, X_new)); Y = np.vstack((Y, Y_new))
 		all_Rs = np.vstack((all_Rs, r_new)); ep_rewards = np.vstack((ep_rewards, np.reshape(total_r,(1,1))))
 		pilco.mgpr.set_data((X, Y))
