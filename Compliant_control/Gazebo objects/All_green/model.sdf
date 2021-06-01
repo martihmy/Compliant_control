@@ -1,6 +1,6 @@
 <?xml version='1.0'?>
 <sdf version='1.6'>
-  <model name='tall_5000kp_frictionX0.02_inertia_1cm'>
+  <model name='Custom_box2'>
     <link name='link_0'>
       <inertial>
         <mass>9176.46</mass>
@@ -20,10 +20,10 @@
       <kinematic>0</kinematic>
       <enable_wind>0</enable_wind>
       <visual name='visual'>
-        <pose frame=''>0 0 0 0 -0 0</pose>
+        <pose frame=''>-0.23 0 0 0 -0 0</pose>
         <geometry>
           <box>
-            <size>1 1 0.475462</size>
+            <size>0.18 0.18 0.475462</size>
           </box>
         </geometry>
         <material>
@@ -35,7 +35,7 @@
           <shader type='vertex'>
             <normal_map>__default__</normal_map>
           </shader>
-          <ambient>0 1 0.1 1</ambient>
+          <ambient>0 1 0 1</ambient>
           <diffuse>0.7 0.7 0.7 1</diffuse>
           <specular>0.01 0.01 0.01 1</specular>
           <emissive>0 0 0 1</emissive>
@@ -46,10 +46,10 @@
       <collision name='collision'>
         <laser_retro>0</laser_retro>
         <max_contacts>10</max_contacts>
-        <pose frame=''>0 0 0 0 -0 0</pose>
+        <pose frame=''>-0.23 0 0 0 -0 0</pose>
         <geometry>
           <box>
-            <size>1 1 0.465462</size>
+            <size>0.18 0.18 0.465462</size>
           </box>
         </geometry>
         <surface>
@@ -83,7 +83,7 @@
               <soft_cfm>0</soft_cfm>
               <soft_erp>0.2</soft_erp>
               <kp>5000</kp>
-              <kd>1</kd>
+              <kd>3</kd>
               <max_vel>0.01</max_vel>
               <min_depth>0</min_depth>
             </ode>
@@ -93,13 +93,13 @@
               <soft_cfm>0</soft_cfm>
               <soft_erp>0.2</soft_erp>
               <kp>5000</kp>
-              <kd>1</kd>
+              <kd>3</kd>
             </bullet>
           </contact>
         </surface>
       </collision>
     </link>
-    <static>0</static>
+    <static>1</static>
     <allow_auto_disable>1</allow_auto_disable>
   </model>
 </sdf>
