@@ -282,7 +282,7 @@ def policy_0(run, pilco, x, is_random):
 	if is_random:
 		#time.sleep(0.35)#RBF-controller #the delay is introduced to have a consistent time consumption whether is_random is True or False 
 		#time.sleep(0.05) #linear controller
-		
+		"""
 		if run == 0:
 			return [random.uniform(-1,-0.95),random.uniform(-1,-0.8)]
 		elif run ==1:
@@ -291,8 +291,8 @@ def policy_0(run, pilco, x, is_random):
 			return [random.uniform(-0.75,0.25),random.uniform(0,0.3)]
 		else:
 			return [random.uniform(-1,1),random.uniform(-1,1)]
-		
-		#return [0,-0.5]
+		"""
+		return [0,-0.5]
 		
 	else:
 		numpy_format = pilco.compute_action(x[None, :],realtime=True)[0, :]
@@ -323,3 +323,22 @@ def plot_prediction(pilco,T,state_dim,X_new,m_init,S_init):
 					m_p[0:T-1, i] - 2*np.sqrt(S_p[0:T-1, i, i]),
 					m_p[0:T-1, i] + 2*np.sqrt(S_p[0:T-1, i, i]), alpha=0.2)
 		plt.show()
+
+def save_prediction(T,state_dim, m_init,S_init, save_path):
+	m_p = np.zeros((T, state_dim))
+	S_p = np.zeros((T, state_dim, state_dim))
+
+	m_p[0,:] = m_init
+	S_p[0, :, :] = S_init
+
+	for h in range(1, T):
+		m_p[h,:], S_p[h,:,:] = pilco.propagate(m_p[h-1, None, :], S_p[h-1,:,:])
+
+	np.save(save_path + '/GP__m_p.npy',m_p)
+	np.save(save_path + '/GP__S_p.npy',S_p)
+
+
+def delete_oldest_rollout(X,Y,T):
+	X_cut = np.delete(X,slice(0,T),axis=0)
+	Y_cut = np.delete(Y,slice(0,T),axis=0)
+	return X_cut,Y_cut
