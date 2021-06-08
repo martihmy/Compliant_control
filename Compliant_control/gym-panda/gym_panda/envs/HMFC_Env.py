@@ -8,7 +8,7 @@ from gym import spaces
 import numpy as np
 import rospy
 import matplotlib.pyplot as plt
-
+import time
 import random
 np.random.seed(0)
 
@@ -67,16 +67,6 @@ class HMFC_Env(gym.Env):
         self.robot = ArmInterface()
         self.joint_names=self.robot.joint_names()
 
-        #also in reset()
-        """
-        random_number = random.uniform(-1,1)
-        if random_number <= 0:
-            start_neutral = True
-        else:
-            start_neutral = False
-
-        self.robot.move_to_start(cfg.ALTERNATIVE_START, cfg.RED_START ,self.sim, start_neutral=start_neutral)
-        """
 
             #set desired pose/force trajectory
         self.f_d_ddot,self.f_d_dot, self.f_d= func.generate_Fd_constant(self.max_num_it)#func.generate_Fd_steep(self.max_num_it,cfg.T,cfg.Fd)  
@@ -94,6 +84,8 @@ class HMFC_Env(gym.Env):
         self.Kd_lambda_hist = np.zeros(self.max_num_it)
         self.Kp_lambda_hist = np.zeros(self.max_num_it)
         self.Kp_pos_hist= np.zeros(self.max_num_it)
+        self.lambda_b = np.zeros(self.max_num_it)
+        self.lambda_c = np.zeros(self.max_num_it)
 
         self.F, self.h_e, self.ori, self.p, self.x, self.J, self.v, self.joint_v = self.robot.get_HMFC_states(self.x_hist,self.iteration,self.time_per_iteration, self.goal_ori, self.joint_names,self.sim)
         self.F_offset = self.F
@@ -101,7 +93,7 @@ class HMFC_Env(gym.Env):
 
 
         #array with data meant for plotting
-        self.data_for_plotting = np.zeros((14,self.max_num_it))
+        self.data_for_plotting = np.zeros((16,self.max_num_it))
 
               
     def step(self, action):
@@ -138,14 +130,14 @@ class HMFC_Env(gym.Env):
         
 
         # calculate torque
-        f_lambda = func.get_f_lambda(self.f_d_ddot[self.iteration], self.f_d_dot[self.iteration], self.f_d[self.iteration], self.iteration,self.time_per_iteration, self.S_f,self.C,self.Kd_lambda,self.Kp_lambda,self.F,self.h_e_hist,self.J,self.joint_v, self.joint_names,self.sim)
+        f_lambda, self.lambda_b[self.iteration], self.lambda_c[self.iteration] = func.get_f_lambda(self.f_d_ddot[self.iteration], self.f_d_dot[self.iteration], self.f_d[self.iteration], self.iteration,self.time_per_iteration, self.S_f,self.C,self.Kd_lambda,self.Kp_lambda,self.F,self.h_e_hist,self.J,self.joint_v, self.joint_names,self.sim)
         alpha_v = func.calculate_alpha_v(self.iteration,self.ori,self.goal_ori, self.r_d_ddot[:,self.iteration], self.r_d_dot[:,self.iteration],self.p, self.p_d[:,self.iteration], self.Kp_r,self.Kd_r,self.v)
         alpha = func.calculate_alpha(self.S_v,alpha_v,self.C,self.S_f,-f_lambda)
         self.robot.perform_torque_HMFC(alpha,self.J,self.h_e,self.joint_names)
 
         # Gym-related..
         
-        reward = 0
+        
         
 
         if self.iteration >= self.max_num_it-1:
@@ -163,15 +155,21 @@ class HMFC_Env(gym.Env):
         if cfg.ADD_NOISE:	
             self.state = [self.state[0] + np.random.normal(0,abs(self.state[0]*cfg.NOISE_FRACTION)), self.state[1],self.state[2]]
         self.iteration +=1
+
+	if self.x[0] >=  0.331 #0.3424 #0.3434: #border to red region (ish)
+	    part_of_env = 'red'
+	else:
+	    part_of_env = 'green'
+
         rate = self.rate
         rate.sleep()
 
-        return np.array(self.state), reward, done, placeholder
+        return np.array(self.state), part_of_env, done, placeholder
 
 
     def reset(self):
-
-        random_number = random.uniform(-1,1)
+	time.sleep(30) #Trying to make sure that the last controller has time to deactivate (Error)
+        random_number = -1 #random.uniform(-1,1)
         if random_number <= 0:
             start_neutral = True
         else:
@@ -204,6 +202,8 @@ class HMFC_Env(gym.Env):
         self.Kd_lambda_hist = np.zeros(self.max_num_it)
         self.Kp_lambda_hist = np.zeros(self.max_num_it)
         self.Kp_pos_hist= np.zeros(self.max_num_it)
+        self.lambda_b = np.zeros(self.max_num_it)
+        self.lambda_c = np.zeros(self.max_num_it)
 
         self.F, self.h_e, self.ori, self.p, self.x, self.J, self.v, self.joint_v = self.robot.get_HMFC_states(self.x_hist,self.iteration,self.time_per_iteration, self.goal_ori,self.joint_names, self.sim)
         self.F_offset = self.F
@@ -211,7 +211,7 @@ class HMFC_Env(gym.Env):
 
 
         #array with data meant for plotting
-        self.data_for_plotting = np.zeros((14,self.max_num_it))
+        self.data_for_plotting = np.zeros((16,self.max_num_it))
 
         #self.state = self.robot.get_state_space_HMFC(self.p_z_init,self.F_offset,self.p_d[0,self.iteration],self.h_e_hist,self.iteration,self.time_per_iteration)
         self.state = self.robot.get_3_dim_state_space(self.p_z_init,self.F_offset,self.f_d[self.iteration],self.p_d[0,self.iteration],self.h_e_hist,self.iteration,self.time_per_iteration)
@@ -235,6 +235,8 @@ class HMFC_Env(gym.Env):
         self.data_for_plotting[11,:] = self.Kd_lambda_hist
         self.data_for_plotting[12,:] = self.Kp_lambda_hist
         self.data_for_plotting[13,:] = self.Kp_pos_hist
+        self.data_for_plotting[14,:] = self.lambda_b
+        self.data_for_plotting[15,:] = self.lambda_c
 
 
     
