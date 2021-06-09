@@ -57,7 +57,7 @@ class AdmittanceEnv(gym.Env):
         #set desired pose/force trajectory
         self.ori = self.robot.endpoint_pose()['orientation'] # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
         self.goal_ori = self.ori
-        self.x_d = af.generate_desired_trajectory_tc(self.robot,self.max_num_it,cfg.T,move_in_x=True)
+        self.x_d = af.generate_desired_trajectory_tc(self.robot,self.max_num_it,cfg.T,self.sim,move_in_x=True)
         #self.F_d = af.generate_F_d_steep(self.max_num_it,cfg.T,cfg.Fd)# generate_F_d_constant(self.robot,self.max_num_it,cfg.T,self.sim)     #af.generate_Fd_smooth(self.robot,self.max_num_it,cfg.T,self.sim)
         self.F_d = af.generate_F_d_constant(self.max_num_it, cfg.Fd)
         self.x = self.x_d[:,0]
@@ -139,7 +139,7 @@ class AdmittanceEnv(gym.Env):
         #set desired pose/force trajectory
         self.ori = self.robot.endpoint_pose()['orientation'] # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
         self.goal_ori = self.ori
-        self.x_d = af.generate_desired_trajectory_tc(self.robot,self.max_num_it,cfg.T,move_in_x=True)
+        self.x_d = af.generate_desired_trajectory_tc(self.robot,self.max_num_it,cfg.T,self.sim,move_in_x=True)
         #self.F_d = af.generate_F_d_steep(self.max_num_it,cfg.T,cfg.Fd)#af.generate_F_d_constant(self.robot,self.max_num_it,cfg.T,self.sim)
         self.F_d = af.generate_F_d_constant(self.max_num_it, cfg.Fd)
         self.ori_E = np.zeros(3)

@@ -72,7 +72,7 @@ def generate_desired_trajectory(iterations,T):
     return p
 
 #2  Generate a (time-consistent) desired motion-trajectory
-def generate_desired_trajectory_tc(robot,iterations,T,move_in_x=False, move_down=False): #admittance
+def generate_desired_trajectory_tc(robot,iterations,T,sim,move_in_x=False, move_down=False): #admittance
     a = np.zeros((3,iterations+100))
     v = np.zeros((3,iterations+100))
     p = np.zeros((3,iterations+100))
@@ -83,8 +83,13 @@ def generate_desired_trajectory_tc(robot,iterations,T,move_in_x=False, move_down
         a[2,int(max_num_it/75):int(max_num_it*2/75)]=0.625
         
     if move_in_x:
-	a[0,int(max_num_it*4/10):int(max_num_it*6/10)]=0.05
-        a[0,int(max_num_it*6/10):int(max_num_it*8/10)]=-0.05
+	if sim:
+	    a[0,int(max_num_it*4/10):int(max_num_it*6/10)]=0.05
+            a[0,int(max_num_it*6/10):int(max_num_it*8/10)]=-0.05
+	else:
+	    a[0,int(max_num_it*4/10):int(max_num_it*6/10)]=0.0125
+            a[0,int(max_num_it*6/10):int(max_num_it*8/10)]=-0.0125
+
 
 
     for i in range(max_num_it+100):

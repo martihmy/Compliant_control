@@ -56,7 +56,7 @@ cartboard = {'panda_joint1': 1.5100039307153879, 'panda_joint2': 0.6066719992230
 
 """Functions for generating desired MOTION trajectories"""
 
-def generate_desired_trajectory(robot,max_num_it,T,move_in_x=True):
+def generate_desired_trajectory(robot,max_num_it,T,sim,move_in_x=True):
     a = np.zeros((5,max_num_it))
     v = np.zeros((5,max_num_it))
     s = np.zeros((2,max_num_it))
@@ -64,8 +64,12 @@ def generate_desired_trajectory(robot,max_num_it,T,move_in_x=True):
     s[:,0]= robot.endpoint_pose()['position'][0:2]
 
     if move_in_x:
-	a[0,int(max_num_it*4/10):int(max_num_it*6/10)]=0.05
-        a[0,int(max_num_it*6/10):int(max_num_it*8/10)]=-0.05
+	if sim:
+	    a[0,int(max_num_it*4/10):int(max_num_it*6/10)]=0.05
+            a[0,int(max_num_it*6/10):int(max_num_it*8/10)]=-0.05
+	else:
+	    a[0,int(max_num_it*4/10):int(max_num_it*6/10)]=0.0125
+            a[0,int(max_num_it*6/10):int(max_num_it*8/10)]=-0.0125
 
 
     for i in range(max_num_it):
@@ -176,7 +180,7 @@ def get_f_lambda(f_d_ddot, f_d_dot, f_d, i,time_per_iteration, S_f,C,K_Dlambda,K
     lambda_a = f_d_ddot
     lambda_b = np.array(np.dot(K_Dlambda,(f_d_dot-lambda_dot)))
     lambda_c = np.dot(K_Plambda,(f_d-z_force))
-    return max(lambda_a + lambda_b + lambda_c,0)
+    return max(lambda_a + lambda_b + lambda_c,0), lambda_b, lambda_c
 
 # Calculate alpha_v (part of equation 9.62) as on page 213 in chapter 9.3 of The Handbook of Robotics
 def calculate_alpha_v(i, ori, goal_ori, r_d_ddot, r_d_dot, p,p_d,K_Pr,K_Dr,v):

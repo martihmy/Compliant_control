@@ -56,7 +56,7 @@ cartboard = {'panda_joint1': 1.5100039307153879, 'panda_joint2': 0.6066719992230
 
 """Functions for generating desired MOTION trajectories"""
 
-def generate_desired_trajectory(robot,max_num_it,T,move_down=True, move_in_x=True):
+def generate_desired_trajectory(robot,max_num_it,T,sim,move_down=True, move_in_x=True):
     a = np.zeros((6,max_num_it))
     v = np.zeros((6,max_num_it))
     s = np.zeros((3,max_num_it))
@@ -70,8 +70,12 @@ def generate_desired_trajectory(robot,max_num_it,T,move_down=True, move_in_x=Tru
     s[2,0] -= 0.2 #0.1
 
     if move_in_x:
-	a[0,int(max_num_it*4/10):int(max_num_it*6/10)]=0.05
-        a[0,int(max_num_it*6/10):int(max_num_it*8/10)]=-0.05
+	if sim:
+	    a[0,int(max_num_it*4/10):int(max_num_it*6/10)]=0.05
+            a[0,int(max_num_it*6/10):int(max_num_it*8/10)]=-0.05
+	else:
+	    a[0,int(max_num_it*4/10):int(max_num_it*6/10)]=0.0125
+            a[0,int(max_num_it*6/10):int(max_num_it*8/10)]=-0.0125
 
 
 

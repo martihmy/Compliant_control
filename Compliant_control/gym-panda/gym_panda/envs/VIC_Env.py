@@ -69,7 +69,7 @@ class VIC_Env(gym.Env):
         self.f_d= func.generate_Fd_constant(self.max_num_it,cfg.Fd)#func.generate_Fd_steep(self.max_num_it,cfg.T,cfg.Fd)  
         #self.goal_ori = np.asarray(self.robot.endpoint_pose()['orientation']) # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
         self.goal_ori = self.robot.endpoint_pose()['orientation']
-        self.x_d_ddot, self.x_d_dot, self.p_d  = func.generate_desired_trajectory(self.robot,self.max_num_it,cfg.T,move_in_x=True)
+        self.x_d_ddot, self.x_d_dot, self.p_d  = func.generate_desired_trajectory(self.robot,self.max_num_it,cfg.T,self.sim,move_in_x=True)
         
         
 
@@ -180,7 +180,7 @@ class VIC_Env(gym.Env):
         self.Rot_d = self.robot.endpoint_pose()['orientation_R']
         self.f_d= func.generate_Fd_constant(self.max_num_it,cfg.Fd)#func.generate_Fd_steep(self.max_num_it,cfg.T,cfg.Fd)  
         self.goal_ori = self.robot.endpoint_pose()['orientation'] # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
-        self.x_d_ddot, self.x_d_dot, self.p_d  = func.generate_desired_trajectory(self.robot,self.max_num_it,cfg.T,move_in_x=True)
+        self.x_d_ddot, self.x_d_dot, self.p_d  = func.generate_desired_trajectory(self.robot,self.max_num_it,cfg.T,self.sim,move_in_x=True)
         
         
 

@@ -71,7 +71,7 @@ class HMFC_Env(gym.Env):
             #set desired pose/force trajectory
         self.f_d_ddot,self.f_d_dot, self.f_d= func.generate_Fd_constant(self.max_num_it)#func.generate_Fd_steep(self.max_num_it,cfg.T,cfg.Fd)  
         self.goal_ori = self.robot.endpoint_pose()['orientation'] # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
-        self.r_d_ddot, self.r_d_dot, self.p_d  = func.generate_desired_trajectory(self.robot,self.max_num_it,cfg.T,move_in_x=True)
+        self.r_d_ddot, self.r_d_dot, self.p_d  = func.generate_desired_trajectory(self.robot,self.max_num_it,cfg.T,self.sim,move_in_x=True)
         
         
 
@@ -156,7 +156,7 @@ class HMFC_Env(gym.Env):
             self.state = [self.state[0] + np.random.normal(0,abs(self.state[0]*cfg.NOISE_FRACTION)), self.state[1],self.state[2]]
         self.iteration +=1
 
-	if self.x[0] >=  0.331 #0.3424 #0.3434: #border to red region (ish)
+	if self.x[0] >=  0.331: #0.3424 #0.3434: #border to red region (ish)
 	    part_of_env = 'red'
 	else:
 	    part_of_env = 'green'
@@ -181,7 +181,7 @@ class HMFC_Env(gym.Env):
             #set desired pose/force trajectory
         self.f_d_ddot,self.f_d_dot, self.f_d= self.f_d_ddot,self.f_d_dot, self.f_d= func.generate_Fd_constant(self.max_num_it)  
         self.goal_ori = self.robot.endpoint_pose()['orientation'] # goal orientation = current (initial) orientation [remains the same the entire duration of the run]
-        self.r_d_ddot, self.r_d_dot, self.p_d  = func.generate_desired_trajectory(self.robot,self.max_num_it,cfg.T,move_in_x=True)
+        self.r_d_ddot, self.r_d_dot, self.p_d  = func.generate_desired_trajectory(self.robot,self.max_num_it,cfg.T,self.sim,move_in_x=True)
         
         
         
