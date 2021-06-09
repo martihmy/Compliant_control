@@ -16,7 +16,7 @@
     </include>
 
     <physics type="ode">
-      <real_time_update_rate>1000.0</real_time_update_rate>
+      <real_time_update_rate>10</real_time_update_rate>
     </physics>
     
     <gravity>
