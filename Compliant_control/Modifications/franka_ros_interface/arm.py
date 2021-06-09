@@ -862,8 +862,10 @@ class ArmInterface(object):
         if sim:
             if start_neutral:
                 self.move_to_neutral()
+	    """
             else:
                 self.move_to_joint_positions(red_position)
+	    """
 
         else:
             self.move_to_joint_positions(cartboard_position)
