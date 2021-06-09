@@ -114,7 +114,7 @@ def plot_run(data,list_of_limits):
 
     plt.show()
 
-def rollout_panda_norm(run,gateway, state_dim, X1, pilco_green, pilco_red, verbose=False, random=False, SUBS=1, render=False):
+def rollout_panda_norm(run,gateway, state_dim, X1_green, X1_red, pilco_green, pilco_red, verbose=False, random=False, SUBS=1, render=False):
 	channel = gateway.remote_exec("""
 		import gym
 		import sys
@@ -125,12 +125,13 @@ def rollout_panda_norm(run,gateway, state_dim, X1, pilco_green, pilco_red, verbo
 		from gym_panda.envs.HMFC_Env import Normalised_HMFC_Env
 		import math
 
-		X1 = np.array(channel.receive())
+		X1_green = np.array(channel.receive())
+		X1_red = np.array(channel.receive())
 		state_dim = %s
-		m = np.mean(X1[:,:state_dim],0)
-		std = np.std(X1[:,:state_dim],0)
+		m = (np.mean(X1_green[:,:state_dim],0) + np.mean(X1_red[:,:state_dim],0))/2
+		std = (np.std(X1_green[:,:state_dim],0) + np.std(X1_red[:,:state_dim],0))/2
 		env = Normalised_HMFC_Env('panda-HMFC-v0',m,std)
-		X_green[]; Y_green =  [];
+		X_green= []; Y_green =  [];
 		X_red=[]; Y_red =  [];
 		x = env.reset() # x is a np.array
 		
@@ -176,17 +177,15 @@ def rollout_panda_norm(run,gateway, state_dim, X1, pilco_green, pilco_red, verbo
 			x = x_new
 			if done:
 				break
-		#output = [X,Y, ep_return_sampled, ep_return_full]
-		#channel.send(output)
+
 		channel.send(X_green)
 		channel.send(Y_green)
 		channel.send(X_red)
 		channel.send(Y_red)
-		channel.send(float(ep_return_sampled))
-		channel.send(float(ep_return_full))
 		channel.send(plot_data.tolist())
 	""" % (state_dim, SUBS,verbose))
-	channel.send(X1.tolist())
+	channel.send(X1_green.tolist())
+	channel.send(X1_red.tolist())
 	num_of_recordings = channel.receive()
 	for _ in range(num_of_recordings):
 		states = channel.receive()
@@ -203,11 +202,9 @@ def rollout_panda_norm(run,gateway, state_dim, X1, pilco_green, pilco_red, verbo
 	Y_green = channel.receive()
 	X_red = channel.receive()
 	Y_red = channel.receive()
-	ep_return_sampled = channel.receive()
-	ep_return_full = channel.receive()
 	plot_data = channel.receive()
 
-	return np.stack(X_green), np.stack(Y_green), np.stack(X_red), np.stack(Y_red), ep_return_sampled, ep_return_full, num_of_recordings,np.array(plot_data)
+	return np.stack(X_green), np.stack(Y_green), np.stack(X_red), np.stack(Y_red), num_of_recordings,np.array(plot_data)
 
 def rollout_panda(run, gateway, pilco_green, pilco_red, verbose=False, random=True, SUBS=1, render=False):
 	channel = gateway.remote_exec("""
@@ -221,7 +218,7 @@ def rollout_panda(run, gateway, pilco_green, pilco_red, verbose=False, random=Tr
 
 		env = gym.make('panda-HMFC-v0')
 	
-		X_green[]; Y_green =  [];
+		X_green=[]; Y_green =  [];
 		X_red=[]; Y_red =  [];
 		x = env.reset() # x is a np.array
 		
@@ -278,8 +275,6 @@ def rollout_panda(run, gateway, pilco_green, pilco_red, verbose=False, random=Tr
 		channel.send(Y_green)
 		channel.send(X_red)
 		channel.send(Y_red)
-		channel.send(float(ep_return_sampled))
-		channel.send(float(ep_return_full))
 		channel.send(plot_data.tolist())
 	""" % (SUBS,verbose))
 	num_of_recordings = channel.receive()
@@ -299,11 +294,9 @@ def rollout_panda(run, gateway, pilco_green, pilco_red, verbose=False, random=Tr
 	Y_green = channel.receive()
 	X_red = channel.receive()
 	Y_red = channel.receive()
-	ep_return_sampled = channel.receive()
-	ep_return_full = channel.receive()
 	plot_data = channel.receive()
 
-	return np.stack(X_green), np.stack(Y_green), np.stack(X_red), np.stack(Y_red), ep_return_sampled, ep_return_full,num_of_recordings, np.array(plot_data)
+	return np.stack(X_green), np.stack(Y_green), np.stack(X_red), np.stack(Y_red),num_of_recordings, np.array(plot_data)
 
 # must match the value of ACTION_SPACE in config
 KD_LAMBDA_LOWER = 0

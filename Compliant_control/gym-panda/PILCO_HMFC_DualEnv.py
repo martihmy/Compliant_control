@@ -15,7 +15,7 @@ import tensorflow as tf
 from gpflow import set_trainable
 np.random.seed(0)
 from examples.utils import policy#, rollout#, Normalised_Env
-import PILCO_HMFC_utils_VARtest as utils
+import PILCO_HMFC_utils_DualEnv as utils
 #from pilco.save_load_utils import load_pilco_model
 #from pilco.save_load_utils import save_pilco_model
 
@@ -39,7 +39,7 @@ This script is running the Hybrid Motion/Force Controller in the PILCO/Gym-inter
 
 list_of_limits = utils.list_of_limits
 
-save_path = '/home/martin/PILCO/Compliant_panda/trained models/100Hz_HMFC_SUBS-5_linPolicy'
+save_path = '/home/martin/PILCO/Compliant_panda/trained models/2xmodels_100Hz_HMFC_SUBS-5_linPolicy'
 
 # rewards
 F_weight = 5 #2
@@ -59,7 +59,7 @@ if __name__ == "__main__":
 
 	print('starting first rollout')
 	
-	X1_green,Y1_green, X1_red, Y1_red, _, _,T,data_for_plotting = utils.rollout_panda(0,gw, pilco_green=None, pilco_red=None,random=True, SUBS=SUBS, render=False) # function imported from PILCO (EXAMPLES/UTILS)
+	X1_green,Y1_green, X1_red, Y1_red,T,data_for_plotting = utils.rollout_panda(0,gw, pilco_green=None, pilco_red=None,random=True, SUBS=SUBS, render=False) # function imported from PILCO (EXAMPLES/UTILS)
 	#np.save('/home/martin/Figures master/data from runs/no training' + '/hmfc_data_dualEnv.npy',data_for_plotting)
 	#utils.plot_run(data_for_plotting,list_of_limits)
 
@@ -75,7 +75,7 @@ if __name__ == "__main__":
 	
 	for i in range(1,num_randomised_rollouts):
 		print('	- At rollout ',i+1, ' out of ',num_randomised_rollouts)
-		X1_green_, Y1_green_, X1_red_, Y1_red_,_,_, data_for_plotting = utils.rollout_panda(i,gw, pilco_green=None, pilco_red=None, random=True, SUBS=SUBS, render=False)
+		X1_green_, Y1_green_, X1_red_, Y1_red_, _, data_for_plotting = utils.rollout_panda(i,gw, pilco_green=None, pilco_red=None, random=True, SUBS=SUBS, render=False)
 		
 		X1_green = np.vstack((X1_green, X1_green_))
 		Y1_green = np.vstack((Y1_green, Y1_green_))
@@ -139,7 +139,9 @@ if __name__ == "__main__":
 	pilco_red = PILCO((X_red, Y_red), controller=controller, horizon=int(T*horizon_fraq), reward=R, m_init=m_init_red, S_init=S_init_red)
 
 	best_r = 0
+	"""
 	all_Rs = np.zeros((X.shape[0], 1))
+
 	for i in range(len(all_Rs)):
 		all_Rs[i,0] = R.compute_reward(X[i,None,:-control_dim], 0.001 * np.eye(state_dim))[0]  # why 0.001 ?
 
@@ -147,7 +149,7 @@ if __name__ == "__main__":
 
 	for i in range(len(ep_rewards)):
 		ep_rewards[i] = sum(all_Rs[i * T: i*T + T])
-
+	"""
 	#for model in pilco.mgpr.models:
 		#model.likelihood.variance.assign(0.05)# not being done in loaded models
 		#set_trainable(model.likelihood.variance, False)
@@ -179,7 +181,7 @@ if __name__ == "__main__":
 		print('	- optimizing red policy...')
 		pilco_red.optimize_policy(maxiter=300, restarts=0)
 		print('new rollout...')
-		X_new_green, Y_new_green, X_new_red, Y_new_red, _, _,_, data_for_plotting = utils.rollout_panda_norm(rollouts,gw, state_dim, X1, pilco_green=pilco_green, pilco_red=pilco_red, SUBS=SUBS, render=False)
+		X_new_green, Y_new_green, X_new_red, Y_new_red, _, data_for_plotting = utils.rollout_panda_norm(rollouts,gw, state_dim, X1, pilco_green=pilco_green, pilco_red=pilco_red, SUBS=SUBS, render=False)
 		
 		
 		
@@ -193,7 +195,7 @@ if __name__ == "__main__":
 		print('Rollout received a reward of: ',total_r)
 		print('')
 		"""
-		while (len(X_red) + len(X_green))*state_dim >= 2100: 
+		while (len(X_red) + len(X_green))*state_dim >= 2100:
 			X_green,Y_green = utils.delete_oldest_rollout(X_green,Y_green,len(X1_green_))
 			X_red,Y_red = utils.delete_oldest_rollout(X_red,Y_red,len(X1_red_))
 		"""
@@ -204,8 +206,8 @@ if __name__ == "__main__":
 		while len(X_red)*state_dim >= 2100:
 			X_red,Y_red = utils.delete_oldest_rollout(X_red,Y_red,len(X1_red_))
 
-		X_green = np.vstack((X_green, X_new_green)); Y = np.vstack((Y_green, Y_new_green))
-		X_red = np.vstack((X_red, X_new_red)); Y = np.vstack((Y_red, Y_new_red))
+		X_green = np.vstack((X_green, X_new_green)); Y_green = np.vstack((Y_green, Y_new_green))
+		X_red = np.vstack((X_red, X_new_red)); Y_red = np.vstack((Y_red, Y_new_red))
 
 
 		all_Rs = np.vstack((all_Rs, r_new)); ep_rewards = np.vstack((ep_rewards, np.reshape(total_r,(1,1))))
@@ -225,7 +227,7 @@ if __name__ == "__main__":
 
 	
 	for i in range(5):
-		X_new, Y_new, _, _, _, _,_, data_for_plotting = utils.rollout_panda_norm(i,gw, state_dim, X1, pilco_green=pilco_green, pilco_red=pilco_red, SUBS=SUBS, render=False)
+		X_new, Y_new, _, _, _, data_for_plotting = utils.rollout_panda_norm(i,gw, state_dim, X1_green,X1_red, pilco_green=pilco_green, pilco_red=pilco_red, SUBS=SUBS, render=False)
 		np.save(save_path + '/hmfc_data_final_' + str(i) + '.npy',data_for_plotting)
 	"""
 	# Plot multi-step predictions manually
