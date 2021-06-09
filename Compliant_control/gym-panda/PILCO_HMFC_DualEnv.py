@@ -181,7 +181,7 @@ if __name__ == "__main__":
 		print('	- optimizing red policy...')
 		pilco_red.optimize_policy(maxiter=300, restarts=0)
 		print('new rollout...')
-		X_new_green, Y_new_green, X_new_red, Y_new_red, _, data_for_plotting = utils.rollout_panda_norm(rollouts,gw, state_dim, X1, pilco_green=pilco_green, pilco_red=pilco_red, SUBS=SUBS, render=False)
+		X_new_green, Y_new_green, X_new_red, Y_new_red, _, data_for_plotting = utils.rollout_panda_norm(rollouts,gw, state_dim, X1_green,X1_red, pilco_green=pilco_green, pilco_red=pilco_red, SUBS=SUBS, render=False)
 		
 		
 		
