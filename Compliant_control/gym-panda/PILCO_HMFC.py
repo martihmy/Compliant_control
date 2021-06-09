@@ -39,7 +39,7 @@ This script is running the Hybrid Motion/Force Controller in the PILCO/Gym-inter
 
 list_of_limits = utils.list_of_limits
 
-save_path = '/home/martin/PILCO/Compliant_panda/trained models/HMFC_MASTER'
+save_path = '/home/martin/PILCO/Compliant_panda/trained models/100Hz_HMFC_SUBS-5_linPolicy'
 
 # rewards
 F_weight = 5 #2
@@ -52,17 +52,16 @@ if __name__ == "__main__":
 	gw = execnet.makegateway("popen//python=python2.7")
 	
 	num_randomised_rollouts = 4
-	num_rollouts = 10
+	num_rollouts = 16
 
-	SUBS = "1"
-	horizon_fraq = 1/10
+	SUBS = "5"
+	horizon_fraq = 1/30 * int(SUBS)
 
 	print('starting first rollout')
 	
 	X1,Y1, _, _,T,data_for_plotting = utils.rollout_panda(0,gw, pilco=None, random=True, SUBS=SUBS, render=False) # function imported from PILCO (EXAMPLES/UTILS)
-	np.save('/home/martin/Figures master/data from runs/no training' + '/hmfc_data_dualEnv.npy',data_for_plotting)
-	utils.plot_run(data_for_plotting,list_of_limits)
-	print(X1.shape)
+	#np.save('/home/martin/Figures master/data from runs/no training' + '/hmfc_data_dualEnv.npy',data_for_plotting)
+	#utils.plot_run(data_for_plotting,list_of_limits)
 
 	"""
 	These initial rollouts with "random=True" is just gathering data so that we can make a model of the systems dynamics (performing random actions)
@@ -139,7 +138,18 @@ if __name__ == "__main__":
 	#for model in pilco.mgpr.models:
 		#model.likelihood.variance.assign(0.05)# not being done in loaded models
 		#set_trainable(model.likelihood.variance, False)
-
+	"""
+	#Setting the noise parameter
+		#force
+	pilco.mgpr.models[0].likelihood.variance.assign(5)
+	set_trainable(pilco.mgpr.models[0].likelihood.variance, False)
+		#z-position
+	pilco.mgpr.models[1].likelihood.variance.assign(0.05)
+	set_trainable(pilco.mgpr.models[1].likelihood.variance, False)
+		#z-velocity
+	pilco.mgpr.models[2].likelihood.variance.assign(1)
+	set_trainable(pilco.mgpr.models[2].likelihood.variance, False)
+	"""
 	r_new = np.zeros((T, 1))
 	print('doing more rollouts, optimizing the model between each run')
 	for rollouts in range(num_rollouts):
@@ -151,8 +161,8 @@ if __name__ == "__main__":
 			pilco.optimize_policy(maxiter=300, restarts=0) #(maxiter=100, restarts=3) # 4 minutes when (1,0) #RESTART PROBLEMATIC? (25)
 		except:
 			print('policy-optimization failed')#import pdb; pdb.set_trace()
-
-		X_new, Y_new, _, _,_, data_for_plotting = utils.rollout_panda_norm(gw, state_dim, X1, pilco=pilco, SUBS=SUBS, render=False)
+		print('new rollout...')
+		X_new, Y_new, _, _,_, data_for_plotting = utils.rollout_panda_norm(rollouts,gw, state_dim, X1, pilco=pilco, SUBS=SUBS, render=False)
 		
 		
 		
@@ -163,20 +173,26 @@ if __name__ == "__main__":
 		#_, _, r = pilco.predict(m_init, S_init, T)
 		
 		#print("Total ", total_r, " Predicted: ", r)
-		if len(X)*state_dim >= 2250: 
+		print('Rollout received a reward of: ',total_r)
+		print('')
+		while len(X)*state_dim >= 2100: 
 			X,Y = utils.delete_oldest_rollout(X,Y,T)
 		X = np.vstack((X, X_new)); Y = np.vstack((Y, Y_new))
 		all_Rs = np.vstack((all_Rs, r_new)); ep_rewards = np.vstack((ep_rewards, np.reshape(total_r,(1,1))))
 		pilco.mgpr.set_data((X, Y))
-		save_minimal_pilco_model(pilco,X1,X,Y,target,W_diag,save_path,rbf=rbf_status)
+		save_pilco_model(pilco,X1,X,Y,target,W_diag,save_path,rbf=rbf_status)
 		np.save(save_path + '/hmfc_data_' + str(rollouts) + '.npy',data_for_plotting)
 		#utils.plot_run(data_for_plotting, list_of_limits)
-		save_prediction(T,state_dim, m_init,S_init, save_path)
+		"""
+		print('making and saving prediction...')
+		utils.save_prediction(T,state_dim, m_init,S_init, save_path, rollouts, X_new, pilco)
+		print('...saved')
+		"""
 	
 
 	
 	for i in range(5):
-		X_new, Y_new, _, _,_, data_for_plotting = utils.rollout_panda_norm(gw, state_dim, X1, pilco=pilco, SUBS=SUBS, render=False)
+		X_new, Y_new, _, _,_, data_for_plotting = utils.rollout_panda_norm(i,gw, state_dim, X1, pilco=pilco, SUBS=SUBS, render=False)
 		np.save(save_path + '/hmfc_data_final_' + str(i) + '.npy',data_for_plotting)
 
 	# Plot multi-step predictions manually
@@ -191,6 +207,7 @@ if __name__ == "__main__":
 
 	np.save(save_path + '/GP__m_p.npy',m_p)
 	np.save(save_path + '/GP__S_p.npy',S_p)
+	np.savetxt(save_path + '/GP_X.csv', X_new, delimiter=',')
 
 	for i in range(state_dim):
 		plt.plot(range(T-1), m_p[0:T-1, i], X_new[1:T, i]) # can't use Y_new because it stores differences (Dx)
