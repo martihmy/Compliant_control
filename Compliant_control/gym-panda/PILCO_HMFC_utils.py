@@ -114,7 +114,7 @@ def plot_run(data,list_of_limits):
 
     plt.show()
 
-def rollout_panda_norm(gateway, state_dim, X1, pilco, verbose=False, random=False, SUBS=1, render=False):
+def rollout_panda_norm(run,gateway, state_dim, X1, pilco, verbose=False, random=False, SUBS=1, render=False):
 	channel = gateway.remote_exec("""
 		import gym
 		import sys
@@ -123,6 +123,7 @@ def rollout_panda_norm(gateway, state_dim, X1, pilco, verbose=False, random=Fals
 		import numpy as np
 		from gym_panda.envs import HMFC_config as cfg
 		from gym_panda.envs.HMFC_Env import Normalised_HMFC_Env
+		import math
 
 		X1 = np.array(channel.receive())
 		state_dim = %s
@@ -144,9 +145,11 @@ def rollout_panda_norm(gateway, state_dim, X1, pilco, verbose=False, random=Fals
 			channel.send(states.tolist())
 			
 			u = channel.receive()		#u = policy(env, pilco, x, random)
+
 			new_B = u[0]*7.5+7.5
 			new_K = u[1]*40 +50
-			new_Kp_pos = 150 #u[2]*25 + 150
+
+			new_Kp_pos = 50#150 #u[2]*25 + 150
 			scaled_u = [new_B, new_K, new_Kp_pos]
 			for i in range(SUBS):
 				x_new, r, done, plot_data = env.step(scaled_u)
@@ -176,7 +179,7 @@ def rollout_panda_norm(gateway, state_dim, X1, pilco, verbose=False, random=Fals
 	num_of_recordings = channel.receive()
 	for _ in range(num_of_recordings):
 		states = channel.receive()
-		action = policy_0(10, pilco, np.asarray(states), random)
+		action = policy_0(run, pilco, np.asarray(states), random)
 		channel.send(action)
 	#output =  channel.receive()
 	#X, Y, ep_return_sampled, ep_return_full = output[0],output[1],output[2],output[3]
@@ -188,7 +191,7 @@ def rollout_panda_norm(gateway, state_dim, X1, pilco, verbose=False, random=Fals
 
 	return np.stack(X), np.stack(Y), ep_return_sampled, ep_return_full, num_of_recordings,np.array(plot_data)
 
-def rollout_panda(run, gateway, pilco, verbose=False, random=False, SUBS=1, render=False):
+def rollout_panda(run, gateway, pilco, verbose=False, random=True, SUBS=1, render=False):
 	channel = gateway.remote_exec("""
 		import gym
 		import sys
@@ -282,17 +285,17 @@ def policy_0(run, pilco, x, is_random):
 	if is_random:
 		#time.sleep(0.35)#RBF-controller #the delay is introduced to have a consistent time consumption whether is_random is True or False 
 		#time.sleep(0.05) #linear controller
-		"""
+		run = run % 4
 		if run == 0:
-			return [random.uniform(-1,-0.95),random.uniform(-1,-0.8)]
+			return [random.uniform(-1,-0.9),random.uniform(-1,-0.7)]
 		elif run ==1:
-			return [random.uniform(-1,-0.5),random.uniform(-0.8,-0.6)]
+			return [random.uniform(-1,-0.5),random.uniform(-0.7,-0.4)]
 		elif run ==2:
-			return [random.uniform(-0.75,0.25),random.uniform(0,0.3)]
+			return [random.uniform(0,0.5),random.uniform(-0.1,0.3)]
 		else:
-			return [random.uniform(-1,1),random.uniform(-1,1)]
-		"""
-		return [0,-0.5]
+			return [random.uniform(-0.5,0),random.uniform(-0.4,-0.1)]
+		
+		#return [0,-0.5]
 		
 	else:
 		numpy_format = pilco.compute_action(x[None, :],realtime=True)[0, :]
@@ -324,7 +327,7 @@ def plot_prediction(pilco,T,state_dim,X_new,m_init,S_init):
 					m_p[0:T-1, i] + 2*np.sqrt(S_p[0:T-1, i, i]), alpha=0.2)
 		plt.show()
 
-def save_prediction(T,state_dim, m_init,S_init, save_path):
+def save_prediction(T,state_dim, m_init,S_init, save_path, rollout, X_recording, pilco):
 	m_p = np.zeros((T, state_dim))
 	S_p = np.zeros((T, state_dim, state_dim))
 
@@ -334,8 +337,9 @@ def save_prediction(T,state_dim, m_init,S_init, save_path):
 	for h in range(1, T):
 		m_p[h,:], S_p[h,:,:] = pilco.propagate(m_p[h-1, None, :], S_p[h-1,:,:])
 
-	np.save(save_path + '/GP__m_p.npy',m_p)
-	np.save(save_path + '/GP__S_p.npy',S_p)
+	np.save(save_path + '/GP__m_p_' + str(rollout+1) + '.npy',m_p)
+	np.save(save_path + '/GP__S_p_' + str(rollout+1) + '.npy',S_p)
+	np.savetxt(save_path + '/GP_X_' + str(rollout+1) +  '.csv', X_recording, delimiter=',')
 
 
 def delete_oldest_rollout(X,Y,T):
