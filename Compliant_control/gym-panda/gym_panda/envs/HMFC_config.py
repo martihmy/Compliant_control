@@ -12,7 +12,7 @@ ADD_NOISE = True
 NOISE_FRACTION = 0.015 #standard deviation of the noise is 1 % of the force-value
 
 Fd = 3
-PUBLISH_RATE = 30
+PUBLISH_RATE = 100 #30
 duration = 5
 
 #ACTION SPACE
