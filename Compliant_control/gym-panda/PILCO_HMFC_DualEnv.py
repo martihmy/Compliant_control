@@ -165,7 +165,7 @@ if __name__ == "__main__":
 	pilco.mgpr.models[2].likelihood.variance.assign(1)
 	set_trainable(pilco.mgpr.models[2].likelihood.variance, False)
 	"""
-	r_new = np.zeros((T, 1))
+	#r_new = np.zeros((T, 1))
 	print('doing more rollouts, optimizing the model between each run')
 	for rollouts in range(num_rollouts):
 		
@@ -184,16 +184,25 @@ if __name__ == "__main__":
 		X_new_green, Y_new_green, X_new_red, Y_new_red, _, data_for_plotting = utils.rollout_panda_norm(rollouts,gw, state_dim, X1_green,X1_red, pilco_green=pilco_green, pilco_red=pilco_red, SUBS=SUBS, render=False)
 		
 		
+		"""
+		for i in range(len(X_new_green)):
+			r_new_green[:, 0] = R.compute_reward(X_new_green[i,None,:-control_dim], 0.1 * np.eye(state_dim))[0] #-control_dim
+		total_r_green = sum(r_new_green)
 		
-		for i in range(len(X_new)):
-			r_new[:, 0] = R.compute_reward(X_new[i,None,:-control_dim], 0.1 * np.eye(state_dim))[0] #-control_dim
-			
-		total_r = sum(r_new)
+		for i in range(len(X_new_red)):
+			r_new_red[:, 0] = R.compute_reward(X_new_red[i,None,:-control_dim], 0.1 * np.eye(state_dim))[0] #-control_dim
+		total_r_red = sum(r_new_red)
+
+		total_r = total_r_green + total_r_red
+		
 		#_, _, r = pilco.predict(m_init, S_init, T)
 		
 		#print("Total ", total_r, " Predicted: ", r)
 		print('Rollout received a reward of: ',total_r)
 		print('')
+		"""
+
+
 		"""
 		while (len(X_red) + len(X_green))*state_dim >= 2100:
 			X_green,Y_green = utils.delete_oldest_rollout(X_green,Y_green,len(X1_green_))
@@ -210,10 +219,10 @@ if __name__ == "__main__":
 		X_red = np.vstack((X_red, X_new_red)); Y_red = np.vstack((Y_red, Y_new_red))
 
 
-		all_Rs = np.vstack((all_Rs, r_new)); ep_rewards = np.vstack((ep_rewards, np.reshape(total_r,(1,1))))
+		#all_Rs = np.vstack((all_Rs, r_new)); ep_rewards = np.vstack((ep_rewards, np.reshape(total_r,(1,1))))
 		
 		pilco_green.mgpr.set_data((X_green, Y_green))
-		pilco_green.mgpr.set_data((X_red, Y_red))
+		pilco_red.mgpr.set_data((X_red, Y_red))
 
 		#save_pilco_model(pilco,X1,X,Y,target,W_diag,save_path,rbf=rbf_status)
 		np.save(save_path + '/hmfc_data_' + str(rollouts) + '.npy',data_for_plotting)
@@ -227,7 +236,7 @@ if __name__ == "__main__":
 
 	
 	for i in range(5):
-		X_new, Y_new, _, _, _, data_for_plotting = utils.rollout_panda_norm(i,gw, state_dim, X1_green,X1_red, pilco_green=pilco_green, pilco_red=pilco_red, SUBS=SUBS, render=False)
+		_, _, _, _, _, data_for_plotting = utils.rollout_panda_norm(i,gw, state_dim, X1_green,X1_red, pilco_green=pilco_green, pilco_red=pilco_red, SUBS=SUBS, render=False)
 		np.save(save_path + '/hmfc_data_final_' + str(i) + '.npy',data_for_plotting)
 	"""
 	# Plot multi-step predictions manually
