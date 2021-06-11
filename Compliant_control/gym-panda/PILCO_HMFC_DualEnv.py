@@ -39,7 +39,7 @@ This script is running the Hybrid Motion/Force Controller in the PILCO/Gym-inter
 
 list_of_limits = utils.list_of_limits
 
-save_path = '/home/martin/PILCO/Compliant_panda/trained models/2xmodels_100Hz_HMFC_SUBS-5_linPolicy'
+save_path = '/home/martin/PILCO/Compliant_panda/trained models/2xmodels_100Hz_HMFC_SUBS-5_linPolicy' #The folder must already exist!
 
 # rewards
 F_weight = 5 #2
@@ -203,7 +203,7 @@ if __name__ == "__main__":
 		"""
 
 
-		"""
+	
 		while (len(X_red) + len(X_green))*state_dim >= 2100:
 			X_green,Y_green = utils.delete_oldest_rollout(X_green,Y_green,len(X1_green_))
 			X_red,Y_red = utils.delete_oldest_rollout(X_red,Y_red,len(X1_red_))
@@ -214,7 +214,7 @@ if __name__ == "__main__":
 			
 		while len(X_red)*state_dim >= 2100:
 			X_red,Y_red = utils.delete_oldest_rollout(X_red,Y_red,len(X1_red_))
-
+		"""
 		X_green = np.vstack((X_green, X_new_green)); Y_green = np.vstack((Y_green, Y_new_green))
 		X_red = np.vstack((X_red, X_new_red)); Y_red = np.vstack((Y_red, Y_new_red))
 
