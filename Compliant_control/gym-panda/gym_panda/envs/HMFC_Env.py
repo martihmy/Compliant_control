@@ -155,11 +155,21 @@ class HMFC_Env(gym.Env):
         if cfg.ADD_NOISE:	
             self.state = [self.state[0] + np.random.normal(0,abs(self.state[0]*cfg.NOISE_FRACTION)), self.state[1],self.state[2]]
         self.iteration +=1
-
-	if self.x[0] >=  0.331: #0.3424 #0.3434: #border to red region (ish)
-	    part_of_env = 'red'
+	
+	if self.sim:
+	    if self.x[0] >=  0.331: #0.3424 #0.3434: #border to red region (ish)
+	        part_of_env = 'red'
+	    else:
+	        part_of_env = 'green'
+	
 	else:
-	    part_of_env = 'green'
+	    if self.r_d_ddot[0,self.iteration] != 0 or r_d[0,self.iteration]> r_d[0,0]:
+	    # if desired acceleration in x !=0 or curren desired x_pos > initial desired x_pos:
+		part_of_env = 'red'
+	    else:
+		part_of_env = 'green'
+	    
+
 
         rate = self.rate
         rate.sleep()
