@@ -157,9 +157,11 @@ class HMFC_Env(gym.Env):
         self.iteration +=1
 	
 	if self.sim:
-	    if self.x[0] >=  0.331: #0.3424 #0.3434: #border to red region (ish)
-	        part_of_env = 'red'
-	    else:
+	    if self.x[0] >=  0.345 & self.x[0] <= 0.365: #0.331: #0.3424 #0.3434: #border to red region (ish)
+	        part_of_env = 'yellow'
+	    elif self.x[0] >=  0.365:
+		part_of_env = 'red'
+            else:
 	        part_of_env = 'green'
 	
 	else:
