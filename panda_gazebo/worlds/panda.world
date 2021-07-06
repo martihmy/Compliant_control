@@ -10,13 +10,13 @@
     </include>
     
     <include>
-      <uri>/home/martin/model_editor_models/tress</uri>
+      <uri>/home/martin/model_editor_models/All_green_long</uri>
       <pose>1.5 0 0 0 0 0</pose>
       <static>True</static>
     </include>
 
     <physics type="ode">
-      <real_time_update_rate>10</real_time_update_rate>
+      <real_time_update_rate>1000</real_time_update_rate>
     </physics>
     
     <gravity>

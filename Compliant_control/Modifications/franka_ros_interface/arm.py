@@ -858,13 +858,13 @@ class ArmInterface(object):
         """
         return self._frames_interface
 
-    def move_to_start(self,cartboard_position, red_position, sim, start_neutral = True):
+    def move_to_start(self,cartboard_position, alt_sim_pos, sim, start_neutral = True):
         if sim:
             if start_neutral:
                 self.move_to_neutral()
 	    """
             else:
-                self.move_to_joint_positions(red_position)
+                self.move_to_joint_positions(alt_sim_pos)
 	    """
 
         else:
@@ -883,7 +883,7 @@ class ArmInterface(object):
             else:
                 return np.append(self.endpoint_velocity()['linear'][:2],self.endpoint_velocity()['angular'])
 
-    def get_HMFC_states(self,x_hist,i,time_per_iteration, goal_ori, joint_names, sim):
+    def get_HFMC_states(self,x_hist,i,time_per_iteration, goal_ori, joint_names, sim):
         F = self.endpoint_effort()['force'][2]
         if sim == False:
             F = -F
@@ -903,14 +903,14 @@ class ArmInterface(object):
 
 
     # Calculate and perform the torque as in equation (9.16) in chapter 9.2 of The Handbook of Robotics
-    def perform_torque_HMFC(self, alpha,jacobian,h_e,joint_names):
+    def perform_torque_HFMC(self, alpha,jacobian,h_e,joint_names):
         cartesian_inertia = np.linalg.inv(np.linalg.multi_dot([jacobian,np.linalg.inv(self.joint_inertia_matrix()),jacobian.T]))
         alpha_torque = np.array(np.linalg.multi_dot([jacobian.T,cartesian_inertia,alpha])).reshape([7,1])
         external_torque = np.dot(jacobian.T,h_e).reshape([7,1])
         torque = alpha_torque + self.coriolis_comp().reshape([7,1]) - external_torque
         self.set_joint_torques(dict(list(zip(joint_names,torque))))
 
-    def get_state_space_HMFC(self,p_z_init,F_offset, p_x_d, force_hist,iteration,time_per_iteration):
+    def get_state_space_HFMC(self,p_z_init,F_offset, p_x_d, force_hist,iteration,time_per_iteration):
         F = self.endpoint_effort()['force'][2]-F_offset
         delta_p_z = self.endpoint_pose()['position'][2]-p_z_init
         v_z = self.endpoint_velocity()['linear'][2]
