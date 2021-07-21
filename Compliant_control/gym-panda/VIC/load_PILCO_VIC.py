@@ -23,14 +23,8 @@ np.set_printoptions(precision=2)
 
 
 """
-This script is running the Variable Impedance Controller in the PILCO/Gym-interface
+This script is loading and running the Variable Impedance Controller in the PILCO/Gym-interface
 
-1) An agent is first performing random actions (no training) 
-	- the possible actions are increasing/deacreasing of damping and stiffness
-
-2) The data is then used to make a model of the mapping between actions and states
-
-3) The resulting model is used to find a policy for how to adjust damping and stiffness
 """
 
 
