@@ -114,6 +114,7 @@ def plot_run(data,list_of_limits):
 
     plt.show()
 
+
 def rollout_panda_norm(run,gateway, state_dim, X1, pilco, verbose=False, random=False, SUBS=1, render=False):
 	channel = gateway.remote_exec("""
 		import gym
@@ -144,10 +145,10 @@ def rollout_panda_norm(run,gateway, state_dim, X1, pilco, verbose=False, random=
 			states = np.hstack(x)
 			channel.send(states.tolist())
 			
-			u = channel.receive()		#u = policy(env, pilco, x, random)
+			u = channel.receive()		# receiving an action from the PILCO-framework (Python 3)
 
-			new_B = u[0]*7.5+7.5
-			new_K = u[1]*40 +50
+			new_B = u[0]*7.5 + 7.5		# the action in [-1,1] is scaled to an appropriate interval
+			new_K = u[1]*40 + 50		# ^
 
 			scaled_u = [new_B, new_K]
 			for i in range(SUBS):
@@ -217,14 +218,17 @@ def rollout_panda(run, gateway, pilco, verbose=False, random=True, SUBS=1, rende
 			channel.send(states.tolist())
 			
 			
-			u = channel.receive()		#u = policy(env, pilco, x, random)
+			u = channel.receive()			# receiving an action from the PILCO-framework (Python 3)
+			
+			
+			# The semi-random actions are kept constant for some control iterations, improving learning efficiency
 			if timestep ==0:
-				new_B = u[0]*7.5+7.5
-				new_K = u[1]*40 +50
-
+				new_B = u[0]*7.5+7.5 		# the action in [-1,1] is scaled to an appropriate interval
+				new_K = u[1]*40 +50		# ^
+			
 			elif math.fmod(timestep,4) == 0:
 				if math.fmod(timestep,8) == 0:
-					new_B = u[0]*7.5+7.5
+					new_B = u[0]*7.5+7.5 
 				else:
 					new_K = u[1]*40 +50
 
@@ -266,22 +270,23 @@ def rollout_panda(run, gateway, pilco, verbose=False, random=True, SUBS=1, rende
 
 	return np.stack(X), np.stack(Y), ep_return_sampled, ep_return_full,num_of_recordings, np.array(plot_data)
 
-# must match the value of ACTION_SPACE in config
+# Only for plotting! Should match the values that u[0] and u[1] are scaled to in rollout_panda_norm and rollout_panda 
 KD_LAMBDA_LOWER = 0
 KD_LAMBDA_UPPER = 15
 
 KP_LAMBDA_LOWER = 10
 KP_LAMBDA_UPPER = 90
 
-KP_POS_LOWER = 125
-KP_POS_UPPER =  175
+KP_POS_LOWER = 125 # Not a part of the action-space anymore
+KP_POS_UPPER =  175 # ^
 
+# plotting purposes
 list_of_limits = np.array([KD_LAMBDA_LOWER, KD_LAMBDA_UPPER, KP_LAMBDA_LOWER, KP_LAMBDA_UPPER, KP_POS_LOWER, KP_POS_UPPER ])
 
 def policy_0(run, pilco, x, is_random):
 	if is_random:
-		#time.sleep(0.35)#RBF-controller #the delay is introduced to have a consistent time consumption whether is_random is True or False 
-		#time.sleep(0.05) #linear controller
+		
+		# The semi-random actions are drawn from limited intervals, improving learning efficiency
 		
 		run = run % 4
 		if run == 0:
@@ -308,7 +313,7 @@ def policy_0(run, pilco, x, is_random):
 		
 
 
-def plot_prediction(pilco,T,state_dim,X_new,m_init,S_init):
+def plot_prediction(pilco,T,state_dim,X_new,m_init,S_init): # prone to numerical errors
 	# Plot multi-step predictions manually
 	m_p = np.zeros((T, state_dim))
 	S_p = np.zeros((T, state_dim, state_dim))
