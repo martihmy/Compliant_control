@@ -37,30 +37,31 @@ This script is running the Hybrid Motion/Force Controller in the PILCO/Gym-inter
 """
 
 
-list_of_limits = utils.list_of_limits
+list_of_limits = utils.list_of_limits # Only used for plotting
 
+# A valid save path must be specified!
 save_path = '/home/martin/PILCO/Compliant_panda/trained models/MASTER_THESIS_DualEnv_singlePol_try2'
 
-# rewards
-F_weight = 5 #2
-Xpos_weight = 0 #0.1
-F_dot_weight = 0.1
-overshoot_weight = 1 #2#0.5
+# reward for tracking the desired contact force (F = Fd)
+F_weight = 5
+
 
 if __name__ == "__main__":
 	print('started PILCO_HMFC')
+	
+	# Making a gateway necesarry for executing the Python2-dependent robot-functionality
 	gw = execnet.makegateway("popen//python=python2.7")
 	
-	num_randomised_rollouts = 4
-	num_rollouts = 16
+	num_randomised_rollouts = 4 # Number of rollouts where the "agent" is performing (semi) random actions
+	num_rollouts = 16 # Number of rollouts where the "agent" is following its current policy
 
-	SUBS = "5"
-	horizon_fraq = 1/30 * int(SUBS)
+	SUBS = "5" #SUBSAMPLING: When SUBS = "5", every 5th receiven state-vector is recorded and used by the learning algorithm
+	horizon_fraq = 1/30 * int(SUBS) # Planning horizon. When optimizing, how far into the future should the "agent" make predictions
 
 	print('starting first rollout')
 	
-	X1,Y1, _, _,T,data_for_plotting = utils.rollout_panda(0,gw, pilco=None, random=True, SUBS=SUBS, render=False) # function imported from PILCO (EXAMPLES/UTILS)
-	#np.save('/home/martin/Figures master/data from runs/no training' + '/hmfc_data_dualEnv.npy',data_for_plotting)
+	# This function is reponsible for running the HFMC with (semi) random stiffness and damping parameters
+	X1,Y1, _, _,T,data_for_plotting = utils.rollout_panda(0,gw, pilco=None, random=True, SUBS=SUBS, render=False) # the function is adapted from PILCO (EXAMPLES/UTILS)
 	utils.plot_run(data_for_plotting,list_of_limits)
 
 	"""
@@ -76,8 +77,8 @@ if __name__ == "__main__":
 	for i in range(1,num_randomised_rollouts):
 		print('	- At rollout ',i+1, ' out of ',num_randomised_rollouts)
 		X1_, Y1_,_,_,_, data_for_plotting = utils.rollout_panda(i,gw, pilco=None, random=True, SUBS=SUBS, render=False)
-		X1 = np.vstack((X1, X1_))
-		Y1 = np.vstack((Y1, Y1_))
+		X1 = np.vstack((X1, X1_)) # stacking the sampled state- and action-values
+		Y1 = np.vstack((Y1, Y1_)) # stacking the state-changes
 		#utils.plot_run(data_for_plotting, list_of_limits)
 	
 	
@@ -85,8 +86,8 @@ if __name__ == "__main__":
 	state_dim = Y1.shape[1]
 	control_dim = X1.shape[1] - state_dim 
 
-	norm_env_m = np.mean(X1[:,:state_dim],0) #input for normalised_env
-	norm_env_std = np.std(X1[:,:state_dim], 0)  #input for normalised_env
+	norm_env_m = np.mean(X1[:,:state_dim],0) #input for normalised_env (mean)
+	norm_env_std = np.std(X1[:,:state_dim], 0)  #input for normalised_env (standard deviation)
 
 	X = np.zeros(X1.shape)
 	X[:, :state_dim] = np.divide(X1[:, :state_dim] - np.mean(X1[:,:state_dim],0), np.std(X1[:,:state_dim], 0))  # states are normalised
@@ -99,57 +100,38 @@ if __name__ == "__main__":
 	"""
 	
 	m_init =  np.transpose(X[0,:-control_dim,None]) #initial state
-	S_init =  np.eye(state_dim)*0.001 #1 # initial variance
-
-	controller = RbfController(state_dim=state_dim, control_dim=control_dim, num_basis_functions=15) #nbf 25
+	S_init =  np.eye(state_dim)*0.001  # initial variance (0 leads to numerical instability)
+	
+	# Chose a controller (policy model)
+	controller = RbfController(state_dim=state_dim, control_dim=control_dim, num_basis_functions=15)
 	#controller = LinearController(state_dim=state_dim, control_dim=control_dim)
-	rbf_status = True
+	
+	rbf_status = True #MUST MATCH THE CHOICE ABOVE!
+	
+	# Reward-parameters
 	target = np.zeros(state_dim)
-	target[0] = 3 #desired force (must also be specified in the controller as this one is just related to rewards)
+	target[0] = 3 #desired force (must also be specified in Compliant_control/gym-panda/HFMC/gym_panda/envs/HFMC_config.py as this one is just related to rewards)
 	W_diag = np.zeros(state_dim)
 	W_diag[0] = F_weight
-	#W_diag[3] = Xpos_weight
-	#W_diag[3] = F_dot_weight
-	
-	"""
-	if state_dim >= 5:
-		W_diag[4] = F_dot_weight
-	if state_dim >= 6: 
-		W_diag[5] = overshoot_weight
-	"""
-	#NOW TESTING A SMALLER STATE-SPACE!
 
-
+	# Exponential reward funciton
 	R = ExponentialReward(state_dim=state_dim, t=np.divide(target - norm_env_m, norm_env_std),W=np.diag(W_diag))
 
-
+	# PILCO object
 	pilco = PILCO((X, Y), controller=controller, horizon=int(T*horizon_fraq), reward=R, m_init=m_init, S_init=S_init)
-
+	
+	# Calculating rewards
 	best_r = 0
 	all_Rs = np.zeros((X.shape[0], 1))
 	for i in range(len(all_Rs)):
-		all_Rs[i,0] = R.compute_reward(X[i,None,:-control_dim], 0.001 * np.eye(state_dim))[0]  # why 0.001 ?
+		all_Rs[i,0] = R.compute_reward(X[i,None,:-control_dim], 0.001 * np.eye(state_dim))[0] 
 
 	ep_rewards = np.zeros((len(X)//T,1))
 
 	for i in range(len(ep_rewards)):
 		ep_rewards[i] = sum(all_Rs[i * T: i*T + T])
 
-	#for model in pilco.mgpr.models:
-		#model.likelihood.variance.assign(0.05)# not being done in loaded models
-		#set_trainable(model.likelihood.variance, False)
-	"""
-	#Setting the noise parameter
-		#force
-	pilco.mgpr.models[0].likelihood.variance.assign(5)
-	set_trainable(pilco.mgpr.models[0].likelihood.variance, False)
-		#z-position
-	pilco.mgpr.models[1].likelihood.variance.assign(0.05)
-	set_trainable(pilco.mgpr.models[1].likelihood.variance, False)
-		#z-velocity
-	pilco.mgpr.models[2].likelihood.variance.assign(1)
-	set_trainable(pilco.mgpr.models[2].likelihood.variance, False)
-	"""
+
 	r_new = np.zeros((T, 1))
 	print('doing more rollouts, optimizing the model between each run')
 	for rollouts in range(num_rollouts):
@@ -158,31 +140,35 @@ if __name__ == "__main__":
 		pilco.optimize_models()
 		print('	- optimizing policy...')
 		try:
-			pilco.optimize_policy(maxiter=100, restarts=0) #(maxiter=100, restarts=3) # 4 minutes when (1,0) #RESTART PROBLEMATIC? (25)
+			pilco.optimize_policy(maxiter=100, restarts=0) 
 		except:
-			print('policy-optimization failed')#import pdb; pdb.set_trace()
+			print('policy-optimization failed')
 		print('new rollout...')
+		# This function is responsible for running the HFMC ON-policy. A normalized version of the gym-environment is used
 		X_new, Y_new, _, _,_, data_for_plotting = utils.rollout_panda_norm(rollouts,gw, state_dim, X1, pilco=pilco, SUBS=SUBS, render=False)
 		
 		
 		
 		for i in range(len(X_new)):
-			r_new[:, 0] = R.compute_reward(X_new[i,None,:-control_dim], 0.1 * np.eye(state_dim))[0] #-control_dim
+			r_new[:, 0] = R.compute_reward(X_new[i,None,:-control_dim], 0.1 * np.eye(state_dim))[0]
 			
 		total_r = sum(r_new)
-		#_, _, r = pilco.predict(m_init, S_init, T)
-		
+		#_, _, r = pilco.predict(m_init, S_init, T) # This function is prone to numerical errors
 		#print("Total ", total_r, " Predicted: ", r)
+		
 		print('Rollout received a reward of: ',total_r)
 		print('')
-		while len(X)*state_dim >= 1800:#2100: 
+		
+		# Due to issues with memory overload, the oldest rollouts are removed when closing in on the upper data limit
+		while len(X)*state_dim >= 1800:
 			X,Y = utils.delete_oldest_rollout(X,Y,T)
-		X = np.vstack((X, X_new)); Y = np.vstack((Y, Y_new))
+			
+		X = np.vstack((X, X_new)); Y = np.vstack((Y, Y_new)) #stacking sampled data 
 		all_Rs = np.vstack((all_Rs, r_new)); ep_rewards = np.vstack((ep_rewards, np.reshape(total_r,(1,1))))
-		pilco.mgpr.set_data((X, Y))
-		save_pilco_model(pilco,X1,X,Y,target,W_diag,save_path,rbf=rbf_status)
-		np.save(save_path + '/hmfc_data_' + str(rollouts) + '.npy',data_for_plotting)
-		#utils.plot_run(data_for_plotting, list_of_limits)
+		pilco.mgpr.set_data((X, Y)) # the data-set of the PILCO-object is updated
+		save_pilco_model(pilco,X1,X,Y,target,W_diag,save_path,rbf=rbf_status) # saving PILCO-object (data, model and policy [NOT WORKING PROPERLY])
+		np.save(save_path + '/hmfc_data_' + str(rollouts) + '.npy',data_for_plotting) # saving data for plotting
+		#utils.plot_run(data_for_plotting, list_of_limits) # plotting the last result
 		"""
 		print('making and saving prediction...')
 		utils.save_prediction(T,state_dim, m_init,S_init, save_path, rollouts, X_new, pilco)
@@ -190,12 +176,12 @@ if __name__ == "__main__":
 		"""
 	
 
-	
+	# When finished learning, perform "x" rollouts using the final policy
 	for i in range(5):
 		X_new, Y_new, _, _,_, data_for_plotting = utils.rollout_panda_norm(i,gw, state_dim, X1, pilco=pilco, SUBS=SUBS, render=False)
 		np.save(save_path + '/hmfc_data_final_' + str(i) + '.npy',data_for_plotting)
 
-	# Plot multi-step predictions manually
+	# Plot multi-step predictions manually (the rest of the script)
 	m_p = np.zeros((T, state_dim))
 	S_p = np.zeros((T, state_dim, state_dim))
 
