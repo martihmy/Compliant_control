@@ -21,21 +21,6 @@ np.set_printoptions(precision=2)
 state_dim = 5
 control_dim = 3
 
-"""
-m_init =  np.transpose(X[0,:-control_dim,None])
-S_init =  0.5 * np.eye(state_dim)
-controller = RbfController(state_dim=state_dim, control_dim=control_dim, num_basis_functions=15) #nbf 25
-#controller = LinearController(state_dim=state_dim, control_dim=control_dim)
-target = np.zeros(state_dim)
-target[0] = 3 #desired force (must also be specified in the controller as this one is just related to rewards)
-W_diag = np.zeros(state_dim)
-W_diag[0],W_diag[3] = 1, 0
-
-"""
-
-#reward = ExponentialReward(state_dim=state_dim, t=np.divide(target - norm_env_m, norm_env_std),W=np.diag(W_diag))
-
-controller = RbfController(state_dim=state_dim, control_dim=control_dim, num_basis_functions=15)
 
 gw = execnet.makegateway("popen//python=python2.7")
 
