@@ -60,4 +60,4 @@ in the Conda environment.
 
 ## Setup of the implemented controllers
 
-In order to run the implemented controllers, the package https://github.com/martihmy/Compliant_control, is to replace panda_simulator. Additionally, the four python scripts in the folder Modifications, is to replace the files with the same names in the PILCO-, franka_ros_interface- and panda_robot packages respectively. 
+In order to run the implemented controllers, this package (https://github.com/martihmy/Compliant_control), is to replace panda_simulator. Additionally, the four python scripts in the folder Modifications, is to replace the files with the same names in the PILCO-, franka_ros_interface- and panda_robot packages respectively. 
