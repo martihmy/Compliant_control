@@ -29,11 +29,11 @@ All compatibility related to PILCO can be achieved through the following steps:
 
 
 
-  - Install the [PILCO](https://github.com/nrontsis/PILCO) implementation
+  1) Install the [PILCO](https://github.com/nrontsis/PILCO) implementation
   
-  - Install OpenAI Gym
+  2) Install OpenAI Gym
   
-  - Install execnet
+  3) Install execnet
   
 
 
